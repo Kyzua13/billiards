@@ -21,12 +21,14 @@ export interface ShotResolution {
 export function applyShot(state: GameState, activeSeat: Seat, shot: Shot, gameMode: GameMode = "2v2"): ShotResolution {
   const result = simulateShot(state.balls, state.table, shot.angle, shot.power);
   const activeTeam = teamForSeat(activeSeat);
+  const teamGroups = assignGroupsIfNeeded({ ...state, balls: result.balls }, activeTeam, result.pocketed);
   const next: GameState = {
     ...state,
     balls: result.balls,
     ruleState: {
       ...state.ruleState,
-      pocketedByTeam: assignPocketedToTeam(state.ruleState.pocketedByTeam, activeTeam, result.pocketed),
+      teamGroups,
+      pocketedByTeam: assignPocketedToTeam(state.ruleState.pocketedByTeam, teamGroups, result.balls, result.pocketed),
       lastPocketed: result.pocketed,
       scratch: result.scratch,
       message: ""
@@ -34,7 +36,6 @@ export function applyShot(state: GameState, activeSeat: Seat, shot: Shot, gameMo
     shotInProgress: false
   };
 
-  assignGroupsIfNeeded(next, activeTeam, result.pocketed);
   resolveEightBall(next, activeTeam, result.pocketed, result.scratch);
 
   if (result.scratch) {
@@ -60,18 +61,26 @@ export function advanceSeat(seat: Seat, gameMode: GameMode = "2v2"): Seat {
   return seats[(index + 1) % seats.length] ?? seats[0];
 }
 
-function assignGroupsIfNeeded(state: GameState, team: Team, pocketed: number[]): void {
-  if (state.ruleState.teamGroups.A || state.ruleState.teamGroups.B) return;
+function assignGroupsIfNeeded(
+  state: GameState,
+  team: Team,
+  pocketed: number[]
+): Partial<Record<Team, BallGroup>> {
+  if (state.ruleState.teamGroups.A || state.ruleState.teamGroups.B) return { ...state.ruleState.teamGroups };
   const firstGroup = firstGroupPocketed(state, pocketed);
-  if (!firstGroup) return;
+  if (!firstGroup) return { ...state.ruleState.teamGroups };
   const otherTeam: Team = team === "A" ? "B" : "A";
-  state.ruleState.teamGroups[team] = firstGroup;
-  state.ruleState.teamGroups[otherTeam] = firstGroup === "solids" ? "stripes" : "solids";
+  return {
+    ...state.ruleState.teamGroups,
+    [team]: firstGroup,
+    [otherTeam]: firstGroup === "solids" ? "stripes" : "solids"
+  };
 }
 
 function assignPocketedToTeam(
   current: GameState["ruleState"]["pocketedByTeam"] | undefined,
-  team: Team,
+  teamGroups: Partial<Record<Team, BallGroup>>,
+  balls: GameState["balls"],
   pocketed: number[]
 ): GameState["ruleState"]["pocketedByTeam"] {
   const next = {
@@ -79,12 +88,21 @@ function assignPocketedToTeam(
     B: [...(current?.B ?? [])]
   };
   for (const id of pocketed) {
-    if (id === 0 || next.A.includes(id) || next.B.includes(id)) continue;
-    next[team].push(id);
+    if (id === 0 || id === 8 || next.A.includes(id) || next.B.includes(id)) continue;
+    const ball = balls.find((candidate) => candidate.id === id);
+    const owner = ball?.group ? teamForGroup(teamGroups, ball.group) : undefined;
+    if (!owner) continue;
+    next[owner].push(id);
   }
   next.A.sort((a, b) => a - b);
   next.B.sort((a, b) => a - b);
   return next;
+}
+
+function teamForGroup(teamGroups: Partial<Record<Team, BallGroup>>, group: BallGroup): Team | undefined {
+  if (teamGroups.A === group) return "A";
+  if (teamGroups.B === group) return "B";
+  return undefined;
 }
 
 function resolveEightBall(state: GameState, team: Team, pocketed: number[], scratch: boolean): void {

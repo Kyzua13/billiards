@@ -255,37 +255,23 @@ function shoot(context: ClientContext, roomCode: string, shot: { angle: number; 
   }
 
   room.state.gameState.shotInProgress = true;
-  broadcast(room, { type: "shot_started", room: room.state });
-
-  const resolution = applyShot(room.state.gameState, seat, {
+  const authoritativeShot = {
     angle: Number.isFinite(shot.angle) ? shot.angle : 0,
     power
-  }, room.state.gameMode);
-
-  playShotFrames(room, resolution);
-}
-
-function playShotFrames(room: Room, resolution: ReturnType<typeof applyShot>): void {
-  const frames = resolution.frames.length > 0 ? resolution.frames : [{ balls: resolution.state.balls, events: [] }];
-  let index = 0;
-
-  const sendNextFrame = () => {
-    const frame = frames[index];
-    if (!frame) {
-      room.state.gameState = resolution.state;
-      broadcast(room, { type: "shot_resolved", room: room.state });
-      broadcast(room, { type: "turn_changed", room: room.state });
-      return;
-    }
-
-    room.state.gameState.balls = frame.balls;
-    room.state.gameState.shotInProgress = true;
-    broadcast(room, { type: "shot_frame", roomCode: room.state.code, frame });
-    index += 1;
-    setTimeout(sendNextFrame, 40);
   };
+  const startBalls = room.state.gameState.balls.map((ball) => ({
+    ...ball,
+    position: { ...ball.position },
+    velocity: { ...ball.velocity }
+  }));
+  broadcast(room, { type: "shot_started", room: room.state, shot: authoritativeShot, startBalls, activeSeat: seat });
 
-  setTimeout(sendNextFrame, 40);
+  const resolution = applyShot(room.state.gameState, seat, authoritativeShot, room.state.gameMode);
+  room.state.gameState = resolution.state;
+  setTimeout(() => {
+    broadcast(room, { type: "shot_resolved", room: room.state });
+    broadcast(room, { type: "turn_changed", room: room.state });
+  }, 120);
 }
 
 function requestState(context: ClientContext, roomCode: string): void {

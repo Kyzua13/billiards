@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_TABLE, isInPocket, runSimulation } from "../shared/src/index.ts";
+import {
+  DEFAULT_TABLE,
+  createShotSimulation,
+  isInPocket,
+  isSimulationSettled,
+  runSimulation,
+  simulateShot,
+  stepSimulation
+} from "../shared/src/index.ts";
 import type { Ball } from "../shared/src/index.ts";
 
 function ball(id: number, x: number, y: number, vx = 0, vy = 0): Ball {
@@ -48,5 +56,26 @@ describe("physics", () => {
   it("detects pocketed balls inside pocket radius", () => {
     expect(isInPocket({ x: DEFAULT_TABLE.pockets[0].x, y: DEFAULT_TABLE.pockets[0].y }, DEFAULT_TABLE)).toBe(true);
     expect(isInPocket({ x: DEFAULT_TABLE.width / 2, y: DEFAULT_TABLE.height / 2 }, DEFAULT_TABLE)).toBe(false);
+  });
+
+  it("matches final shot state between stepped and full simulation", () => {
+    const balls = [
+      ball(0, 220, 260),
+      ball(1, 360, 260),
+      ball(2, 390, 280)
+    ];
+    const full = simulateShot(balls, DEFAULT_TABLE, 0, 0.55);
+    const stepped = createShotSimulation(balls, DEFAULT_TABLE, 0, 0.55);
+
+    while (!isSimulationSettled(stepped)) {
+      stepSimulation(stepped, 2);
+    }
+
+    for (const fullBall of full.balls) {
+      const steppedBall = stepped.balls.find((candidate) => candidate.id === fullBall.id)!;
+      expect(steppedBall.position.x).toBeCloseTo(fullBall.position.x, 3);
+      expect(steppedBall.position.y).toBeCloseTo(fullBall.position.y, 3);
+      expect(steppedBall.pocketed).toBe(fullBall.pocketed);
+    }
   });
 });

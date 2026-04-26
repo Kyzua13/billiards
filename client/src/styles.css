@@ -235,9 +235,13 @@ p {
 
 .musicPanel {
   display: grid;
-  grid-template-columns: 94px 1fr;
+  grid-template-columns: 1fr 94px;
   gap: 8px;
   align-items: center;
+}
+
+.musicPanel select {
+  grid-column: 1 / -1;
 }
 
 .musicPanel button {
@@ -246,6 +250,20 @@ p {
 
 .musicPanel input {
   padding: 0;
+}
+
+.radioPanel {
+  border: 1px solid #33413d;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #101614;
+}
+
+.radioPanel iframe {
+  display: block;
+  width: 100%;
+  height: 160px;
+  border: 0;
 }
 
 .message {

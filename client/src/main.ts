@@ -2,12 +2,17 @@ import {
   SEATS,
   buildPreview,
   canShoot,
+  cloneBalls,
+  createShotSimulation,
+  isSimulationSettled,
+  stepSimulation,
   teamForSeat,
   type Ball,
   type GameMode,
   type RoomState,
   type ServerMessage,
   type ShotFrame,
+  type StepSimulationState,
   type Team,
   type Vec2
 } from "../../shared/src/index.ts";
@@ -16,6 +21,7 @@ import "./styles.css";
 const NAME_KEY = "lan-pool-name";
 const CLIENT_ID_KEY = "lan-pool-client-id";
 const MUSIC_ENABLED_KEY = "lan-pool-music-enabled";
+const MUSIC_MODE_KEY = "lan-pool-music-mode";
 const MUSIC_VOLUME_KEY = "lan-pool-music-volume";
 const TABLE_WIDTH = 960;
 const TABLE_HEIGHT = 520;
@@ -51,6 +57,7 @@ interface AppState {
   dragging: boolean;
   gameMode: GameMode;
   musicEnabled: boolean;
+  musicMode: "synth" | "radio";
   musicVolume: number;
   error: string;
 }
@@ -67,6 +74,7 @@ const state: AppState = {
   dragging: false,
   gameMode: "1v1",
   musicEnabled: localStorage.getItem(MUSIC_ENABLED_KEY) === "true",
+  musicMode: localStorage.getItem(MUSIC_MODE_KEY) === "radio" ? "radio" : "synth",
   musicVolume: Number(localStorage.getItem(MUSIC_VOLUME_KEY) ?? "0.28"),
   error: ""
 };
@@ -113,8 +121,21 @@ app.innerHTML = `
         </div>
         <button id="shootBtn" class="shoot" disabled>Shoot</button>
         <div class="musicPanel">
+          <select id="musicMode" aria-label="Music mode">
+            <option value="synth">Synth lofi</option>
+            <option value="radio">Lofi Girl</option>
+          </select>
           <button id="musicBtn" type="button">Music off</button>
           <input id="musicVolume" type="range" min="0" max="1" step="0.01" aria-label="Music volume" />
+        </div>
+        <div id="radioPanel" class="radioPanel" hidden>
+          <iframe
+            title="Lofi Girl radio"
+            src="https://www.youtube.com/embed/jfKfPfyJRdk?controls=1&rel=0"
+            allow="autoplay; encrypted-media; picture-in-picture"
+            referrerpolicy="strict-origin-when-cross-origin"
+            loading="lazy"
+          ></iframe>
         </div>
         <p id="message" class="message"></p>
         <p id="error" class="error"></p>
@@ -142,6 +163,7 @@ const powerInput = document.querySelector<HTMLInputElement>("#powerInput")!;
 const powerText = document.querySelector<HTMLSpanElement>("#powerText")!;
 const shootBtn = document.querySelector<HTMLButtonElement>("#shootBtn")!;
 const musicBtn = document.querySelector<HTMLButtonElement>("#musicBtn")!;
+const musicMode = document.querySelector<HTMLSelectElement>("#musicMode")!;
 const musicVolume = document.querySelector<HTMLInputElement>("#musicVolume")!;
 
 let audioContext: AudioContext | undefined;
@@ -149,9 +171,14 @@ let musicGain: GainNode | undefined;
 let musicTimer: number | undefined;
 let renderedPixelRatio = 1;
 let tableRenderPending = false;
+let localSimulation: StepSimulationState | undefined;
+let localAnimationId: number | undefined;
+let pendingResolvedRoom: RoomState | undefined;
+let lastSoundAt = 0;
 
 nameInput.value = localStorage.getItem(NAME_KEY) ?? "";
 powerInput.value = String(state.power);
+musicMode.value = state.musicMode;
 musicVolume.value = String(clamp(state.musicVolume, 0, 1));
 
 document.querySelector<HTMLButtonElement>("#createBtn")!.addEventListener("click", () => {
@@ -197,6 +224,14 @@ musicBtn.addEventListener("click", () => {
   localStorage.setItem(MUSIC_ENABLED_KEY, String(state.musicEnabled));
   if (state.musicEnabled) startMusic();
   else stopMusic();
+  renderChrome();
+});
+
+musicMode.addEventListener("change", () => {
+  state.musicMode = musicMode.value === "radio" ? "radio" : "synth";
+  localStorage.setItem(MUSIC_MODE_KEY, state.musicMode);
+  stopMusic();
+  if (state.musicEnabled) startMusic();
   renderChrome();
 });
 
@@ -296,17 +331,26 @@ function handleServerMessage(message: ServerMessage): void {
       if (message.playerId) state.playerId = message.playerId;
       break;
     case "player_update":
-    case "shot_resolved":
+      applyRoom(message.room, true);
+      break;
     case "turn_changed":
+      if (localSimulation) {
+        pendingResolvedRoom = message.room;
+        return;
+      }
+      applyRoom(message.room, true);
+      break;
+    case "shot_resolved":
+      if (localSimulation) {
+        pendingResolvedRoom = message.room;
+        return;
+      }
       applyRoom(message.room, true);
       break;
     case "shot_started":
-      applyRoom(message.room, true);
-      renderChrome();
-      renderTable();
+      startLocalShot(message.room, message.startBalls, message.shot);
       return;
     case "shot_frame":
-      handleShotFrame(message.roomCode, message.frame);
       return;
     case "error":
       state.error = message.message;
@@ -320,6 +364,24 @@ function applyRoom(room: RoomState, clearAim: boolean): void {
   if (clearAim) state.aimLocked = false;
   state.gameMode = room.gameMode;
   modeInput.value = room.gameMode;
+}
+
+function startLocalShot(room: RoomState, startBalls: Ball[], shot: { angle: number; power: number }): void {
+  pendingResolvedRoom = undefined;
+  stopLocalShotAnimation();
+  state.room = {
+    ...room,
+    gameState: {
+      ...room.gameState,
+      balls: cloneBalls(startBalls),
+      shotInProgress: true
+    }
+  };
+  state.aimLocked = false;
+  localSimulation = createShotSimulation(startBalls, room.gameState.table, shot.angle, shot.power);
+  renderChrome();
+  renderTable();
+  runLocalShotFrame();
 }
 
 function render(): void {
@@ -349,6 +411,8 @@ function renderChrome(): void {
   shootBtn.disabled = !room || !canShoot(room.gameState, getMe()?.seat) || !state.aimLocked || state.power <= 0;
   modeInput.disabled = Boolean(room);
   musicBtn.textContent = state.musicEnabled ? "Music on" : "Music off";
+  musicMode.value = state.musicMode;
+  document.querySelector<HTMLDivElement>("#radioPanel")!.hidden = !(state.musicEnabled && state.musicMode === "radio");
   renderWinner();
 }
 
@@ -531,12 +595,11 @@ function send(message: object): void {
   }
 }
 
-function handleShotFrame(roomCode: string, frame: ShotFrame): void {
-  if (!state.room || state.room.code !== roomCode) return;
+function handleShotFrame(frame: ShotFrame): void {
   state.room = {
-    ...state.room,
+    ...state.room!,
     gameState: {
-      ...state.room.gameState,
+      ...state.room!.gameState,
       balls: frame.balls,
       shotInProgress: true
     }
@@ -552,30 +615,49 @@ function ensureAudio(): void {
 
 function playFrameSounds(frame: ShotFrame): void {
   if (!audioContext || audioContext.state !== "running") return;
+  const nowMs = performance.now();
+  if (nowMs - lastSoundAt < 45) return;
   for (const event of frame.events.slice(0, SOUND_LIMIT)) {
-    if (event.type === "cue") playTone(210, 0.04, 0.12 * event.intensity, "square");
-    if (event.type === "collision") playTone(520, 0.03, 0.06 * event.intensity, "triangle");
-    if (event.type === "cushion") playTone(150, 0.04, 0.05 * event.intensity, "sawtooth");
-    if (event.type === "pocket") playTone(86, 0.1, 0.14 * event.intensity, "sine");
+    if (event.type === "cue") playFilteredClick(260, 0.045, 0.11 * event.intensity, "lowpass");
+    if (event.type === "collision") playFilteredClick(720, 0.03, 0.05 * event.intensity, "bandpass");
+    if (event.type === "cushion") playFilteredClick(170, 0.05, 0.045 * event.intensity, "lowpass");
+    if (event.type === "pocket") playFilteredClick(95, 0.12, 0.12 * event.intensity, "lowpass");
+    lastSoundAt = nowMs;
   }
 }
 
-function playTone(frequency: number, duration: number, gainValue: number, type: OscillatorType): void {
+function playFilteredClick(
+  frequency: number,
+  duration: number,
+  gainValue: number,
+  filterType: BiquadFilterType
+): void {
   if (!audioContext) return;
   const now = audioContext.currentTime;
   const oscillator = audioContext.createOscillator();
+  const filter = audioContext.createBiquadFilter();
   const gain = audioContext.createGain();
-  oscillator.type = type;
+  oscillator.type = "triangle";
   oscillator.frequency.setValueAtTime(frequency, now);
-  gain.gain.setValueAtTime(Math.max(0.005, gainValue), now);
+  oscillator.frequency.exponentialRampToValueAtTime(Math.max(40, frequency * 0.72), now + duration);
+  filter.type = filterType;
+  filter.frequency.setValueAtTime(frequency * 1.35, now);
+  filter.Q.setValueAtTime(0.7, now);
+  gain.gain.setValueAtTime(0.001, now);
+  gain.gain.exponentialRampToValueAtTime(Math.max(0.004, gainValue), now + 0.006);
   gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
-  oscillator.connect(gain);
+  oscillator.connect(filter);
+  filter.connect(gain);
   gain.connect(audioContext.destination);
   oscillator.start(now);
   oscillator.stop(now + duration);
 }
 
 function startMusic(): void {
+  if (state.musicMode === "radio") {
+    renderChrome();
+    return;
+  }
   if (!audioContext || musicTimer !== undefined) return;
   musicGain ??= audioContext.createGain();
   musicGain.gain.setValueAtTime(state.musicVolume * 0.16, audioContext.currentTime);
@@ -595,14 +677,16 @@ function playLofiBar(): void {
   if (!audioContext || !musicGain) return;
   const now = audioContext.currentTime;
   const chords = [
-    [196, 246.94, 293.66],
-    [174.61, 220, 261.63],
-    [164.81, 196, 246.94],
-    [185, 233.08, 277.18]
+    [196, 246.94, 293.66, 369.99],
+    [174.61, 220, 261.63, 329.63],
+    [164.81, 196, 246.94, 311.13],
+    [185, 233.08, 277.18, 349.23]
   ];
   const chord = chords[Math.floor((now / 2.4) % chords.length)];
-  chord.forEach((frequency, index) => playMusicTone(frequency, now + index * 0.025, 1.8, 0.035, "sine"));
-  playMusicTone(chord[0] / 2, now, 1.2, 0.045, "triangle");
+  chord.forEach((frequency, index) => playMusicTone(frequency, now + index * 0.025, 1.95, 0.027, "sine"));
+  playMusicTone(chord[0] / 2, now, 1.3, 0.042, "triangle");
+  playMusicTone(chord[2] * 2, now + 1.18, 0.42, 0.014, "sine");
+  playMusicTone(chord[1] * 2, now + 1.62, 0.36, 0.011, "sine");
   playNoise(now + 0.08, 0.7, 0.012);
 }
 
@@ -678,6 +762,32 @@ function requestTableRender(): void {
   });
 }
 
+function runLocalShotFrame(): void {
+  if (!localSimulation || !state.room) return;
+  const frame = stepSimulation(localSimulation, 2);
+  handleShotFrame(frame);
+
+  if (isSimulationSettled(localSimulation)) {
+    localSimulation = undefined;
+    localAnimationId = undefined;
+    if (pendingResolvedRoom) {
+      const next = pendingResolvedRoom;
+      pendingResolvedRoom = undefined;
+      applyRoom(next, true);
+      render();
+    }
+    return;
+  }
+
+  localAnimationId = requestAnimationFrame(runLocalShotFrame);
+}
+
+function stopLocalShotAnimation(): void {
+  if (localAnimationId !== undefined) cancelAnimationFrame(localAnimationId);
+  localAnimationId = undefined;
+  localSimulation = undefined;
+}
+
 function getWsUrl(): string {
   const explicit = import.meta.env.VITE_WS_URL as string | undefined;
   if (explicit) return explicit;
@@ -693,10 +803,6 @@ function getOrCreateClientId(): string {
   const next = crypto.randomUUID();
   localStorage.setItem(CLIENT_ID_KEY, next);
   return next;
-}
-
-function distance(a: Vec2, b: Vec2): number {
-  return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
 function clamp(value: number, min: number, max: number): number {

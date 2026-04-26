@@ -91,7 +91,7 @@ export type ServerMessage =
   | { type: "joined_room"; room: RoomState; playerId: string }
   | { type: "state_snapshot"; room: RoomState; playerId?: string }
   | { type: "player_update"; room: RoomState }
-  | { type: "shot_started"; room: RoomState }
+  | { type: "shot_started"; room: RoomState; shot: Shot; startBalls: Ball[]; activeSeat: Seat }
   | { type: "shot_frame"; roomCode: string; frame: ShotFrame }
   | { type: "shot_resolved"; room: RoomState }
   | { type: "turn_changed"; room: RoomState }

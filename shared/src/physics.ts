@@ -31,6 +31,16 @@ export interface SimulationResult {
   frames: ShotFrame[];
 }
 
+export interface StepSimulationState {
+  balls: Ball[];
+  table: Table;
+  pocketed: number[];
+  scratch: boolean;
+  steps: number;
+  settled: boolean;
+  pendingEvents: SoundEvent[];
+}
+
 export interface PreviewResult {
   cuePath: Vec2[];
   objectPath: Vec2[];
@@ -83,71 +93,117 @@ export function cloneBalls(balls: Ball[]): Ball[] {
 }
 
 export function simulateShot(balls: Ball[], table: Table, angle: number, power: number): SimulationResult {
-  const next = cloneBalls(balls);
-  const cue = next.find((ball) => ball.id === 0);
-  if (!cue || cue.pocketed) {
-    return { balls: next, pocketed: [], scratch: false, frames: [] };
-  }
-
-  const clampedPower = clamp(power, 0, 1);
-  const speed = clampedPower * MAX_SPEED;
-  cue.velocity = { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed };
-  const result = runSimulation(next, table);
-  if (speed > 0 && result.frames[0]) {
-    result.frames[0].events.unshift({ type: "cue", intensity: clampedPower });
-  }
-  return result;
+  return runSimulation(createShotSimulation(balls, table, angle, power));
 }
 
-export function runSimulation(balls: Ball[], table: Table): SimulationResult {
-  const pocketed: number[] = [];
+export function createShotSimulation(balls: Ball[], table: Table, angle: number, power: number): StepSimulationState {
+  const next = cloneBalls(balls);
+  const clampedPower = clamp(power, 0, 1);
+  const cue = next.find((ball) => ball.id === 0);
+  const pendingEvents: SoundEvent[] = [];
+
+  if (cue && !cue.pocketed) {
+    const speed = clampedPower * MAX_SPEED;
+    cue.velocity = { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed };
+    if (speed > 0) pendingEvents.push({ type: "cue", intensity: clampedPower });
+  }
+
+  return {
+    balls: next,
+    table,
+    pocketed: [],
+    scratch: false,
+    steps: 0,
+    settled: isSettled(next, table),
+    pendingEvents
+  };
+}
+
+export function stepSimulation(simulation: StepSimulationState, substeps = 2): ShotFrame {
+  const events: SoundEvent[] = [...simulation.pendingEvents];
+  simulation.pendingEvents = [];
+
+  for (let count = 0; count < substeps; count += 1) {
+    if (simulation.settled || simulation.steps >= MAX_STEPS) break;
+    stepOnce(simulation, events);
+  }
+
+  simulation.settled =
+    simulation.steps >= MAX_STEPS ||
+    isSettled(simulation.balls, simulation.table);
+
+  return { balls: cloneBalls(simulation.balls), events };
+}
+
+export function isSimulationSettled(simulation: StepSimulationState): boolean {
+  return simulation.settled;
+}
+
+export function runSimulation(simulationOrBalls: StepSimulationState | Ball[], maybeTable?: Table): SimulationResult {
+  const simulation = Array.isArray(simulationOrBalls)
+    ? createSimulationFromMovingBalls(simulationOrBalls, maybeTable ?? DEFAULT_TABLE)
+    : simulationOrBalls;
   const frames: ShotFrame[] = [];
-  let scratch = false;
 
-  for (let step = 0; step < MAX_STEPS; step += 1) {
-    const events: SoundEvent[] = [];
-    for (const ball of balls) {
-      if (ball.pocketed) continue;
-      ball.position.x += ball.velocity.x * DT;
-      ball.position.y += ball.velocity.y * DT;
-      const cushionIntensity = collideWithCushions(ball, table);
-      if (cushionIntensity > 0.08) events.push({ type: "cushion", intensity: cushionIntensity });
-      ball.velocity.x *= FRICTION;
-      ball.velocity.y *= FRICTION;
-      if (length(ball.velocity) < STOP_SPEED) {
-        ball.velocity = { x: 0, y: 0 };
-      }
-    }
+  while (!isSimulationSettled(simulation)) {
+    const frame = stepSimulation(simulation, 2);
+    if (simulation.steps % 10 === 0) frames.push(frame);
+  }
 
-    for (let i = 0; i < balls.length; i += 1) {
-      for (let j = i + 1; j < balls.length; j += 1) {
-        const collisionIntensity = collideBalls(balls[i], balls[j], table.ballRadius);
-        if (collisionIntensity > 0.08) events.push({ type: "collision", intensity: collisionIntensity });
-      }
-    }
+  frames.push({ balls: cloneBalls(simulation.balls), events: [] });
+  return { balls: simulation.balls, pocketed: simulation.pocketed, scratch: simulation.scratch, frames };
+}
 
-    for (const ball of balls) {
-      if (ball.pocketed) continue;
-      if (isInPocket(ball.position, table)) {
-        ball.pocketed = true;
-        ball.velocity = { x: 0, y: 0 };
-        pocketed.push(ball.id);
-        events.push({ type: "pocket", intensity: ball.id === 0 ? 0.9 : 0.65 });
-        if (ball.id === 0) scratch = true;
-      }
-    }
+function createSimulationFromMovingBalls(balls: Ball[], table: Table): StepSimulationState {
+  const next = cloneBalls(balls);
+  return {
+    balls: next,
+    table,
+    pocketed: [],
+    scratch: false,
+    steps: 0,
+    settled: isSettled(next, table),
+    pendingEvents: []
+  };
+}
 
-    if (step % 5 === 0) {
-      frames.push({ balls: cloneBalls(balls), events });
-    }
+function isSettled(balls: Ball[], table: Table): boolean {
+  return balls.every((ball) => ball.pocketed || (length(ball.velocity) === 0 && !isInPocket(ball.position, table)));
+}
 
-    if (balls.every((ball) => ball.pocketed || length(ball.velocity) === 0)) {
-      break;
+function stepOnce(simulation: StepSimulationState, events: SoundEvent[]): void {
+  simulation.steps += 1;
+
+  for (const ball of simulation.balls) {
+    if (ball.pocketed) continue;
+    ball.position.x += ball.velocity.x * DT;
+    ball.position.y += ball.velocity.y * DT;
+    const cushionIntensity = collideWithCushions(ball, simulation.table);
+    if (cushionIntensity > 0.08) events.push({ type: "cushion", intensity: cushionIntensity });
+    ball.velocity.x *= FRICTION;
+    ball.velocity.y *= FRICTION;
+    if (length(ball.velocity) < STOP_SPEED) {
+      ball.velocity = { x: 0, y: 0 };
     }
   }
 
-  frames.push({ balls: cloneBalls(balls), events: [] });
-  return { balls, pocketed, scratch, frames };
+  for (let i = 0; i < simulation.balls.length; i += 1) {
+    for (let j = i + 1; j < simulation.balls.length; j += 1) {
+      const collisionIntensity = collideBalls(simulation.balls[i], simulation.balls[j], simulation.table.ballRadius);
+      if (collisionIntensity > 0.08) events.push({ type: "collision", intensity: collisionIntensity });
+    }
+  }
+
+  for (const ball of simulation.balls) {
+    if (ball.pocketed) continue;
+    if (isInPocket(ball.position, simulation.table)) {
+      ball.pocketed = true;
+      ball.velocity = { x: 0, y: 0 };
+      simulation.pocketed.push(ball.id);
+      events.push({ type: "pocket", intensity: ball.id === 0 ? 0.9 : 0.65 });
+      if (ball.id === 0) simulation.scratch = true;
+    }
+  }
 }
 
 export function buildPreview(balls: Ball[], table: Table, angle: number, power: number): PreviewResult {

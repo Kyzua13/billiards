@@ -35,6 +35,32 @@ describe("8-ball rules", () => {
     expect(resolution.state.ruleState.pocketedByTeam.A).toContain(1);
   });
 
+  it("assigns pocketed balls to the team that owns their group", () => {
+    const state = createInitialGame();
+    state.phase = "playing";
+    state.ruleState.teamGroups = { A: "solids", B: "stripes" };
+    const stripe = state.balls.find((ball) => ball.id === 9)!;
+    stripe.position = { x: state.table.pockets[0].x, y: state.table.pockets[0].y };
+
+    const resolution = applyShot(state, "A1", { angle: 0, power: 0 }, "1v1");
+
+    expect(resolution.state.ruleState.pocketedByTeam.A).not.toContain(9);
+    expect(resolution.state.ruleState.pocketedByTeam.B).toContain(9);
+  });
+
+  it("does not add the eight ball to pocketed team lists", () => {
+    const state = createInitialGame();
+    state.phase = "playing";
+    state.ruleState.teamGroups = { A: "solids", B: "stripes" };
+    const eight = state.balls.find((ball) => ball.id === 8)!;
+    eight.position = { x: state.table.pockets[0].x, y: state.table.pockets[0].y };
+
+    const resolution = applyShot(state, "A1", { angle: 0, power: 0 }, "1v1");
+
+    expect(resolution.state.ruleState.pocketedByTeam.A).not.toContain(8);
+    expect(resolution.state.ruleState.pocketedByTeam.B).not.toContain(8);
+  });
+
   it("resets the cue ball after a scratch", () => {
     const state = createInitialGame();
     state.phase = "playing";
