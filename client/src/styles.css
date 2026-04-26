@@ -356,6 +356,73 @@ p {
   padding: 0;
 }
 
+.spinPanel {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  border: 1px solid #33413d;
+  border-radius: 6px;
+  background: #101614;
+  padding: 9px;
+}
+
+.spinHeader {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.spinReset {
+  width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border-radius: 50%;
+  color: #d9e5df;
+  background: #202b27;
+}
+
+.spinPad {
+  position: relative;
+  width: 82px;
+  height: 82px;
+  min-height: 82px;
+  padding: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  touch-action: none;
+  background:
+    radial-gradient(circle at 38% 32%, rgba(255, 255, 255, 0.92) 0 9%, transparent 10%),
+    radial-gradient(circle at center, #f7f2df 0 64%, #d8d0be 65% 100%);
+  border-color: #796f60;
+}
+
+.spinPad::before,
+.spinPad::after {
+  content: "";
+  position: absolute;
+  inset: 50% 10px auto;
+  height: 1px;
+  background: rgba(45, 39, 30, 0.28);
+}
+
+.spinPad::after {
+  transform: rotate(90deg);
+}
+
+.spinMarker {
+  position: absolute;
+  left: calc(50% - 5px);
+  top: calc(50% - 5px);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #a33b31;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.72);
+  pointer-events: none;
+}
+
 .shoot {
   min-height: 44px;
   background: #9d3f35;

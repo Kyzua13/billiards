@@ -10,6 +10,7 @@ import {
   SEATS_BY_MODE,
   applyShot,
   canShoot,
+  cloneBalls,
   createInitialGame,
   isInPocket,
   teamForSeat,
@@ -18,7 +19,8 @@ import {
   type Player,
   type RoomState,
   type Seat,
-  type ServerMessage
+  type ServerMessage,
+  type Shot
 } from "../../shared/src/index.ts";
 
 const PORT = Number(process.env.PORT ?? 8787);
@@ -248,7 +250,7 @@ function setName(context: ClientContext, roomCode: string, name: string): void {
   broadcast(room, { type: "player_update", room: room.state });
 }
 
-function shoot(context: ClientContext, roomCode: string, shot: { angle: number; power: number }): void {
+function shoot(context: ClientContext, roomCode: string, shot: Shot): void {
   const room = requireRoom(roomCode);
   const player = requirePlayer(room, context.playerId);
   const seat = player.seat;
@@ -264,13 +266,10 @@ function shoot(context: ClientContext, roomCode: string, shot: { angle: number; 
   room.state.gameState.shotInProgress = true;
   const authoritativeShot = {
     angle: Number.isFinite(shot.angle) ? shot.angle : 0,
-    power
+    power,
+    spin: normalizeSpin(shot.spin)
   };
-  const startBalls = room.state.gameState.balls.map((ball) => ({
-    ...ball,
-    position: { ...ball.position },
-    velocity: { ...ball.velocity }
-  }));
+  const startBalls = cloneBalls(room.state.gameState.balls);
   broadcast(room, { type: "shot_started", room: room.state, shot: authoritativeShot, startBalls, activeSeat: seat });
 
   const resolution = applyShot(room.state.gameState, seat, authoritativeShot, room.state.gameMode);
@@ -297,6 +296,8 @@ function placeCue(context: ClientContext, roomCode: string, position: { x: numbe
 
   cue.position = clampPoint(position, room.state.gameState.table);
   cue.velocity = { x: 0, y: 0 };
+  cue.angularVelocity = { x: 0, y: 0, z: 0 };
+  cue.motionState = "settled";
   cue.pocketed = false;
   room.state.gameState.ruleState.cuePlacementSeat = undefined;
   room.state.gameState.ruleState.message = "Cue ball placed";
@@ -391,6 +392,17 @@ function clampPoint(position: { x: number; y: number }, table: RoomState["gameSt
     x: Math.min(maxX, Math.max(minX, position.x)),
     y: Math.min(maxY, Math.max(minY, position.y))
   };
+}
+
+function normalizeSpin(spin: Shot["spin"]): { x: number; y: number } {
+  return {
+    x: clampUnit(spin?.x),
+    y: clampUnit(spin?.y)
+  };
+}
+
+function clampUnit(value: number | undefined): number {
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(-1, Math.min(1, value)) : 0;
 }
 
 function isValidCuePlacement(state: RoomState["gameState"], position: { x: number; y: number }): boolean {

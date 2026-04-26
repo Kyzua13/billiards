@@ -19,7 +19,7 @@ export interface ShotResolution {
 }
 
 export function applyShot(state: GameState, activeSeat: Seat, shot: Shot, gameMode: GameMode = "2v2"): ShotResolution {
-  const result = simulateShot(state.balls, state.table, shot.angle, shot.power);
+  const result = simulateShot(state.balls, state.table, shot.angle, shot.power, shot.spin);
   const activeTeam = teamForSeat(activeSeat);
   const teamGroups = assignGroupsIfNeeded({ ...state, balls: result.balls }, activeTeam, result.pocketed);
   const foul = isFoul(state, activeTeam, teamGroups, result);

@@ -11,6 +11,7 @@ import {
   type BallGroup,
   type GameMode,
   type RoomState,
+  type Shot,
   type ServerMessage,
   type ShotFrame,
   type StepSimulationState,
@@ -65,6 +66,8 @@ interface Locale {
   teamA: string;
   teamB: string;
   power: string;
+  spin: string;
+  resetSpin: string;
   shoot: string;
   createOrJoin: string;
   playing: string;
@@ -110,6 +113,8 @@ const LOCALES: Record<Language, Locale> = {
     teamA: "Команда A",
     teamB: "Команда B",
     power: "Сила",
+    spin: "Вращение",
+    resetSpin: "Сбросить вращение",
     shoot: "Удар",
     createOrJoin: "Создай комнату или войди в существующую",
     playing: "Игра идёт",
@@ -167,6 +172,8 @@ const LOCALES: Record<Language, Locale> = {
     teamA: "Команда A",
     teamB: "Команда B",
     power: "Сила",
+    spin: "Обертання",
+    resetSpin: "Скинути обертання",
     shoot: "Удар",
     createOrJoin: "Створи кімнату або увійди в існуючу",
     playing: "Гра триває",
@@ -224,6 +231,8 @@ const LOCALES: Record<Language, Locale> = {
     teamA: "Team A",
     teamB: "Team B",
     power: "Power",
+    spin: "Spin",
+    resetSpin: "Reset spin",
     shoot: "Shoot",
     createOrJoin: "Create a room or join one on the same LAN",
     playing: "Playing",
@@ -276,6 +285,8 @@ interface AppState {
   aimAngle: number;
   aimLocked: boolean;
   power: number;
+  spin: Vec2;
+  spinDragging: boolean;
   dragging: boolean;
   gameMode: GameMode;
   language: Language;
@@ -295,6 +306,8 @@ const state: AppState = {
   aimAngle: 0,
   aimLocked: false,
   power: 0.45,
+  spin: { x: 0, y: 0 },
+  spinDragging: false,
   dragging: false,
   gameMode: "1v1",
   language: getInitialLanguage(),
@@ -360,6 +373,15 @@ app.innerHTML = `
           <input id="powerInput" type="range" min="0" max="1" step="0.01" />
           <span id="powerText">45%</span>
         </div>
+        <div class="spinPanel">
+          <div class="spinHeader">
+            <span id="spinTitle" class="panelTitle">Spin</span>
+            <button id="spinReset" class="spinReset" type="button" aria-label="Reset spin">×</button>
+          </div>
+          <button id="spinPad" class="spinPad" type="button" aria-label="Spin control">
+            <span id="spinMarker" class="spinMarker"></span>
+          </button>
+        </div>
         <button id="shootBtn" class="shoot" disabled></button>
         <div class="musicPanel">
           <div id="musicTitle" class="panelTitle">Lofi</div>
@@ -390,6 +412,10 @@ const roomInput = document.querySelector<HTMLInputElement>("#roomInput")!;
 const modeInput = document.querySelector<HTMLSelectElement>("#modeInput")!;
 const powerInput = document.querySelector<HTMLInputElement>("#powerInput")!;
 const powerText = document.querySelector<HTMLSpanElement>("#powerText")!;
+const spinPad = document.querySelector<HTMLButtonElement>("#spinPad")!;
+const spinMarker = document.querySelector<HTMLSpanElement>("#spinMarker")!;
+const spinReset = document.querySelector<HTMLButtonElement>("#spinReset")!;
+const spinTitle = document.querySelector<HTMLElement>("#spinTitle")!;
 const shootBtn = document.querySelector<HTMLButtonElement>("#shootBtn")!;
 const compactBtn = document.querySelector<HTMLButtonElement>("#compactBtn")!;
 const languageBtn = document.querySelector<HTMLButtonElement>("#languageBtn")!;
@@ -453,7 +479,35 @@ powerInput.addEventListener("input", () => {
 shootBtn.addEventListener("click", () => {
   if (!state.room || !state.aimLocked || state.power <= 0) return;
   ensureAudio();
-  send({ type: "shoot", roomCode: state.room.code, shot: { angle: state.aimAngle, power: state.power } });
+  send({ type: "shoot", roomCode: state.room.code, shot: { angle: state.aimAngle, power: state.power, spin: state.spin } });
+});
+
+spinPad.addEventListener("pointerdown", (event) => {
+  if (event.pointerType === "mouse" && event.button !== 0) return;
+  state.spinDragging = true;
+  spinPad.setPointerCapture(event.pointerId);
+  updateSpinFromPointer(event);
+});
+
+spinPad.addEventListener("pointermove", (event) => {
+  if (!state.spinDragging) return;
+  updateSpinFromPointer(event);
+});
+
+spinPad.addEventListener("pointerup", (event) => {
+  state.spinDragging = false;
+  if (spinPad.hasPointerCapture(event.pointerId)) spinPad.releasePointerCapture(event.pointerId);
+  updateSpinFromPointer(event);
+});
+
+spinPad.addEventListener("pointercancel", () => {
+  state.spinDragging = false;
+});
+
+spinReset.addEventListener("click", () => {
+  state.spin = { x: 0, y: 0 };
+  renderChrome();
+  renderTable();
 });
 
 musicVolume.addEventListener("input", () => {
@@ -642,7 +696,7 @@ function applyRoom(room: RoomState, clearAim: boolean): void {
   }
 }
 
-function startLocalShot(room: RoomState, startBalls: Ball[], shot: { angle: number; power: number }): void {
+function startLocalShot(room: RoomState, startBalls: Ball[], shot: Shot): void {
   pendingResolvedRoom = undefined;
   placingCuePoint = undefined;
   stopLocalShotAnimation();
@@ -655,7 +709,7 @@ function startLocalShot(room: RoomState, startBalls: Ball[], shot: { angle: numb
     }
   };
   state.aimLocked = false;
-  localSimulation = createShotSimulation(startBalls, room.gameState.table, shot.angle, shot.power);
+  localSimulation = createShotSimulation(startBalls, room.gameState.table, shot.angle, shot.power, shot.spin);
   renderChrome();
   renderTable();
   runLocalShotFrame();
@@ -693,6 +747,9 @@ function renderChrome(): void {
   teamAGroup.textContent = groupLabel(room?.gameState.ruleState.teamGroups.A);
   teamBGroup.textContent = groupLabel(room?.gameState.ruleState.teamGroups.B);
   document.querySelector<HTMLLabelElement>("#powerLabel")!.textContent = t.power;
+  spinTitle.textContent = t.spin;
+  spinReset.ariaLabel = t.resetSpin;
+  spinMarker.style.transform = `translate(${state.spin.x * 28}px, ${-state.spin.y * 28}px)`;
   musicTitle.textContent = t.music;
   roomCode.textContent = room?.code ?? "-";
   powerText.textContent = `${Math.round(state.power * 100)}%`;
@@ -835,7 +892,7 @@ function drawEmptyTable(): void {
 }
 
 function drawPreview(room: RoomState): void {
-  const preview = buildPreview(room.gameState.balls, room.gameState.table, state.aimAngle, state.power);
+  const preview = buildPreview(room.gameState.balls, room.gameState.table, state.aimAngle, state.power, state.spin);
   drawPath(preview.cuePath, state.aimLocked ? "rgba(120,220,255,0.9)" : "rgba(255,255,255,0.78)", 3);
 
   const cue = room.gameState.balls.find((ball) => ball.id === 0 && !ball.pocketed);
@@ -903,6 +960,21 @@ function eventToTable(event: PointerEvent): Vec2 {
     x: ((event.clientX - rect.left) / rect.width) * TABLE_WIDTH,
     y: ((event.clientY - rect.top) / rect.height) * TABLE_HEIGHT
   };
+}
+
+function updateSpinFromPointer(event: PointerEvent): void {
+  const rect = spinPad.getBoundingClientRect();
+  const radius = Math.min(rect.width, rect.height) / 2;
+  const dx = event.clientX - (rect.left + rect.width / 2);
+  const dy = event.clientY - (rect.top + rect.height / 2);
+  const distance = Math.hypot(dx, dy);
+  const scale = distance > radius ? radius / distance : 1;
+  state.spin = {
+    x: clamp((dx * scale) / radius, -1, 1),
+    y: clamp((-dy * scale) / radius, -1, 1)
+  };
+  renderChrome();
+  renderTable();
 }
 
 function getCurrentPlayer() {

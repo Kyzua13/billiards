@@ -3,6 +3,7 @@ export type BallGroup = "solids" | "stripes";
 export type BallKind = "cue" | "solid" | "stripe" | "eight";
 export type GamePhase = "lobby" | "playing" | "finished";
 export type GameMode = "1v1" | "2v2";
+export type MotionState = "sliding" | "rolling" | "settled";
 export type SoundEventType = "cue" | "collision" | "cushion" | "pocket";
 
 export type Seat = "A1" | "B1" | "A2" | "B2";
@@ -10,6 +11,12 @@ export type Seat = "A1" | "B1" | "A2" | "B2";
 export interface Vec2 {
   x: number;
   y: number;
+}
+
+export interface Vec3 {
+  x: number;
+  y: number;
+  z: number;
 }
 
 export interface Table {
@@ -27,6 +34,8 @@ export interface Ball {
   group?: BallGroup;
   position: Vec2;
   velocity: Vec2;
+  angularVelocity: Vec3;
+  motionState: MotionState;
   pocketed: boolean;
 }
 
@@ -69,6 +78,7 @@ export interface RoomState {
 export interface Shot {
   angle: number;
   power: number;
+  spin?: Vec2;
 }
 
 export interface SoundEvent {
