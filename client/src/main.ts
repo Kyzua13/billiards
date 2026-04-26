@@ -24,6 +24,7 @@ const CLIENT_ID_KEY = "lan-pool-client-id";
 const LANGUAGE_KEY = "lan-pool-language";
 const COMPACT_KEY = "lan-pool-compact";
 const MUSIC_VOLUME_KEY = "lan-pool-music-volume";
+const LOFI_STREAM_URL = "https://ice5.somafm.com/beatblender-128-mp3";
 const TABLE_WIDTH = 960;
 const TABLE_HEIGHT = 520;
 const SOUND_LIMIT = 2;
@@ -50,7 +51,6 @@ const BALL_PALETTE: Record<number, string> = {
 type Language = "ru" | "uk" | "en";
 
 interface Locale {
-  flag: string;
   nativeName: string;
   namePlaceholder: string;
   roomPlaceholder: string;
@@ -66,7 +66,6 @@ interface Locale {
   teamB: string;
   power: string;
   shoot: string;
-  lofiGirl: string;
   createOrJoin: string;
   playing: string;
   turn: string;
@@ -97,7 +96,6 @@ interface Locale {
 
 const LOCALES: Record<Language, Locale> = {
   ru: {
-    flag: "🇷🇺",
     nativeName: "Русский",
     namePlaceholder: "Имя",
     roomPlaceholder: "Комната",
@@ -113,7 +111,6 @@ const LOCALES: Record<Language, Locale> = {
     teamB: "Команда B",
     power: "Сила",
     shoot: "Удар",
-    lofiGirl: "Lofi Girl",
     createOrJoin: "Создай комнату или войди в существующую",
     playing: "Игра идёт",
     turn: "Ход",
@@ -156,7 +153,6 @@ const LOCALES: Record<Language, Locale> = {
     }
   },
   uk: {
-    flag: "🇺🇦",
     nativeName: "Українська",
     namePlaceholder: "Ім'я",
     roomPlaceholder: "Кімната",
@@ -172,7 +168,6 @@ const LOCALES: Record<Language, Locale> = {
     teamB: "Команда B",
     power: "Сила",
     shoot: "Удар",
-    lofiGirl: "Lofi Girl",
     createOrJoin: "Створи кімнату або увійди в існуючу",
     playing: "Гра триває",
     turn: "Хід",
@@ -215,7 +210,6 @@ const LOCALES: Record<Language, Locale> = {
     }
   },
   en: {
-    flag: "🇺🇸",
     nativeName: "English",
     namePlaceholder: "Name",
     roomPlaceholder: "Room",
@@ -231,7 +225,6 @@ const LOCALES: Record<Language, Locale> = {
     teamB: "Team B",
     power: "Power",
     shoot: "Shoot",
-    lofiGirl: "Lofi Girl",
     createOrJoin: "Create a room or join one on the same LAN",
     playing: "Playing",
     turn: "Turn",
@@ -335,9 +328,9 @@ app.innerHTML = `
           <div class="languagePicker">
             <button id="languageBtn" class="languageButton" type="button" aria-haspopup="true" aria-expanded="false"></button>
             <div id="languageMenu" class="languageMenu" hidden>
-              <button type="button" data-language="ru">🇷🇺</button>
-              <button type="button" data-language="uk">🇺🇦</button>
-              <button type="button" data-language="en">🇺🇸</button>
+              <button type="button" data-language="ru"></button>
+              <button type="button" data-language="uk"></button>
+              <button type="button" data-language="en"></button>
             </div>
           </div>
         </div>
@@ -408,8 +401,7 @@ const teamBGroup = document.querySelector<HTMLElement>("#teamBGroup")!;
 const musicTitle = document.querySelector<HTMLElement>("#musicTitle")!;
 
 let audioContext: AudioContext | undefined;
-let musicGain: GainNode | undefined;
-let musicTimer: number | undefined;
+let musicPlayer: HTMLAudioElement | undefined;
 let renderedPixelRatio = 1;
 let tableRenderPending = false;
 let localSimulation: StepSimulationState | undefined;
@@ -467,9 +459,7 @@ shootBtn.addEventListener("click", () => {
 musicVolume.addEventListener("input", () => {
   state.musicVolume = Number(musicVolume.value);
   localStorage.setItem(MUSIC_VOLUME_KEY, String(state.musicVolume));
-  if (musicGain && audioContext) {
-    musicGain.gain.setTargetAtTime(state.musicVolume * 0.18, audioContext.currentTime, 0.04);
-  }
+  applyMusicVolume();
 });
 
 languageBtn.addEventListener("click", () => {
@@ -726,12 +716,14 @@ function renderChrome(): void {
     room.gameState.ruleState.cuePlacementSeat === getMe()?.seat;
   shootBtn.textContent = t.shoot;
   modeInput.disabled = Boolean(room);
-  languageBtn.textContent = t.flag;
+  languageBtn.dataset.language = state.language;
   languageBtn.ariaLabel = `${t.nativeName}`;
   languageBtn.setAttribute("aria-expanded", String(state.languageMenuOpen));
   languageMenu.hidden = !state.languageMenuOpen;
   for (const option of languageMenu.querySelectorAll<HTMLButtonElement>("[data-language]")) {
-    option.classList.toggle("active", option.dataset.language === state.language);
+    const optionLanguage = option.dataset.language as Language;
+    option.classList.toggle("active", optionLanguage === state.language);
+    option.ariaLabel = LOCALES[optionLanguage]?.nativeName ?? optionLanguage;
   }
   compactBtn.textContent = "◫";
   compactBtn.title = t.compact;
@@ -1101,71 +1093,26 @@ function groupLabel(group?: BallGroup): string {
 }
 
 function startMusic(): void {
-  ensureAudio();
-  if (!audioContext || musicTimer !== undefined) return;
-  musicGain ??= audioContext.createGain();
-  musicGain.gain.setValueAtTime(state.musicVolume * 0.18, audioContext.currentTime);
-  musicGain.connect(audioContext.destination);
-  playLofiLoop();
-  musicTimer = window.setInterval(playLofiLoop, 2400);
+  musicPlayer ??= createMusicPlayer();
+  applyMusicVolume();
+  if (musicPlayer.paused) void musicPlayer.play().catch(() => undefined);
 }
 
-function stopMusic(): void {
-  if (musicTimer !== undefined) {
-    window.clearInterval(musicTimer);
-    musicTimer = undefined;
-  }
+function createMusicPlayer(): HTMLAudioElement {
+  const player = new Audio(LOFI_STREAM_URL);
+  player.preload = "none";
+  player.loop = false;
+  player.hidden = true;
+  player.setAttribute("aria-hidden", "true");
+  document.body.append(player);
+  return player;
 }
 
-function playLofiLoop(): void {
-  if (!audioContext || !musicGain) return;
-  const now = audioContext.currentTime;
-  const chords = [
-    [196, 246.94, 293.66, 369.99],
-    [174.61, 220, 261.63, 329.63],
-    [164.81, 196, 246.94, 311.13],
-    [185, 233.08, 277.18, 349.23]
-  ];
-  const chord = chords[Math.floor((now / 2.4) % chords.length)];
-  chord.forEach((frequency, index) => playMusicTone(frequency, now + index * 0.025, 1.95, 0.027, "sine"));
-  playMusicTone(chord[0] / 2, now, 1.3, 0.042, "triangle");
-  playMusicTone(chord[2] * 2, now + 1.18, 0.42, 0.014, "sine");
-  playMusicTone(chord[1] * 2, now + 1.62, 0.36, 0.011, "sine");
-  playNoise(now + 0.08, 0.7, 0.012);
+function applyMusicVolume(): void {
+  if (!musicPlayer) return;
+  musicPlayer.volume = clamp(state.musicVolume, 0, 1);
 }
 
-function playMusicTone(
-  frequency: number,
-  start: number,
-  duration: number,
-  gainValue: number,
-  type: OscillatorType
-): void {
-  if (!audioContext || !musicGain) return;
-  const oscillator = audioContext.createOscillator();
-  const gain = audioContext.createGain();
-  oscillator.type = type;
-  oscillator.frequency.setValueAtTime(frequency, start);
-  gain.gain.setValueAtTime(0.001, start);
-  gain.gain.exponentialRampToValueAtTime(gainValue, start + 0.08);
-  gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
-  oscillator.connect(gain);
-  gain.connect(musicGain);
-  oscillator.start(start);
-  oscillator.stop(start + duration);
-}
-
-function playNoise(start: number, duration: number, gainValue: number): void {
-  if (!audioContext || !musicGain) return;
-  const buffer = audioContext.createBuffer(1, Math.floor(audioContext.sampleRate * duration), audioContext.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < data.length; i += 1) data[i] = (Math.random() * 2 - 1) * 0.35;
-  const source = audioContext.createBufferSource();
-  const gain = audioContext.createGain();
-  source.buffer = buffer;
-  gain.gain.setValueAtTime(gainValue, start);
-  gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
-  source.connect(gain);
-  gain.connect(musicGain);
-  source.start(start);
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }
