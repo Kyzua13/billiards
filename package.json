@@ -1,0 +1,27 @@
+{
+  "name": "lan-8-ball-pool",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k -n server,client -c green,cyan \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:radmin": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-radmin.ps1",
+    "dev:client": "vite --host 0.0.0.0",
+    "dev:server": "tsx watch server/src/index.ts",
+    "start": "tsx server/src/index.ts",
+    "build": "tsc --noEmit && vite build",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "tsx": "^4.20.6",
+    "vite": "^7.1.10",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.7.2",
+    "@types/ws": "^8.18.1",
+    "concurrently": "^9.2.1",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

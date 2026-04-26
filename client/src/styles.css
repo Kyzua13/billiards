@@ -1,0 +1,270 @@
+:root {
+  color: #f4efe8;
+  background: #171b1d;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  border: 1px solid #5c6d67;
+  border-radius: 6px;
+  color: #f7f3ea;
+  background: #26332f;
+  min-height: 38px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: #32433d;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+input,
+select {
+  min-height: 38px;
+  border: 1px solid #58645f;
+  border-radius: 6px;
+  color: #f7f3ea;
+  background: #101614;
+  padding: 0 10px;
+}
+
+.shell {
+  min-height: 100vh;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 26px;
+}
+
+p {
+  margin: 0;
+}
+
+#status {
+  color: #aab6b1;
+  margin-top: 4px;
+}
+
+.connection {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) 82px 88px 86px 72px;
+  gap: 8px;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.panel {
+  border: 1px solid #33413d;
+  border-radius: 8px;
+  background: #1d2522;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.roomLine {
+  display: flex;
+  justify-content: space-between;
+  color: #aab6b1;
+}
+
+.roomLine strong {
+  color: #f8d36c;
+  letter-spacing: 2px;
+}
+
+.pocketedPanel {
+  display: grid;
+  gap: 8px;
+}
+
+.panelTitle {
+  color: #b7c1bd;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pocketedBalls {
+  min-height: 34px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 7px;
+  border: 1px solid #33413d;
+  border-radius: 6px;
+  background: #141b18;
+}
+
+.pocketedBall {
+  width: 26px;
+  height: 26px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #151515;
+  background: var(--ball-color);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.pocketedBall.stripe {
+  background:
+    linear-gradient(
+      180deg,
+      var(--ball-color) 0 28%,
+      #f7f2df 28% 72%,
+      var(--ball-color) 72% 100%
+    );
+}
+
+.pocketedBall.dark {
+  color: #f7f2df;
+}
+
+.pocketedEmpty {
+  color: #7f8b86;
+  font-size: 13px;
+}
+
+.seats {
+  display: grid;
+  gap: 8px;
+}
+
+.seat {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: start;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.seat span {
+  color: #b7c1bd;
+  font-size: 12px;
+}
+
+.seat strong {
+  font-size: 15px;
+}
+
+.seat.active {
+  border-color: #f1c85f;
+  box-shadow: 0 0 0 1px #f1c85f inset;
+}
+
+.meter {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.meter input {
+  grid-column: 1 / -1;
+  padding: 0;
+}
+
+.shoot {
+  min-height: 44px;
+  background: #9d3f35;
+  border-color: #c75d50;
+  font-weight: 700;
+}
+
+.shoot:hover:not(:disabled) {
+  background: #b44b40;
+}
+
+.message {
+  min-height: 40px;
+  color: #f4efe8;
+}
+
+.error {
+  min-height: 20px;
+  color: #ff9a8f;
+}
+
+.tableWrap {
+  width: 100%;
+  overflow: auto;
+  border: 1px solid #33413d;
+  border-radius: 8px;
+  background: #101614;
+  padding: 10px;
+}
+
+canvas {
+  display: block;
+  width: min(100%, 960px);
+  aspect-ratio: 960 / 520;
+  height: auto;
+  margin: 0 auto;
+  border-radius: 8px;
+  touch-action: none;
+}
+
+@media (max-width: 840px) {
+  .topbar,
+  .layout {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+
+  .connection {
+    grid-template-columns: 1fr 78px;
+  }
+
+  .connection input:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .connection select {
+    grid-column: 1 / -1;
+  }
+}

@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: lan-8-ball-pool
+    runtime: node
+    plan: free
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: 24.14.0
