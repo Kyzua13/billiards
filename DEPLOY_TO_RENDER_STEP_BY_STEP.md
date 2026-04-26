@@ -31,7 +31,13 @@ https://github.com/ТВОЙ_ЛОГИН/billiards.git
 cd C:\Users\lmmsf\Documents\billiards
 ```
 
-Выполни команды, заменив ссылку на свою:
+Самый простой вариант: выполни одну команду, заменив ссылку на свою:
+
+```powershell
+.\scripts\publish-github.ps1 -RepoUrl "https://github.com/ТВОЙ_ЛОГИН/billiards.git"
+```
+
+Если скрипт не запустится, выполни команды вручную:
 
 ```powershell
 git remote add origin https://github.com/ТВОЙ_ЛОГИН/billiards.git
