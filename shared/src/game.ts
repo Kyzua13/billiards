@@ -10,6 +10,7 @@ export function createInitialGame(): GameState {
     shotInProgress: false,
     ruleState: {
       teamGroups: {},
+      pocketedByTeam: { A: [], B: [] },
       lastPocketed: [],
       scratch: false,
       message: "Waiting for players"

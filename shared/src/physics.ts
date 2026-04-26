@@ -137,7 +137,7 @@ export function runSimulation(balls: Ball[], table: Table): SimulationResult {
       }
     }
 
-    if (step % 4 === 0 || events.length > 0) {
+    if (step % 5 === 0) {
       frames.push({ balls: cloneBalls(balls), events });
     }
 

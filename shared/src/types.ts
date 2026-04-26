@@ -41,6 +41,7 @@ export interface Player {
 export interface RuleState {
   teamGroups: Partial<Record<Team, BallGroup>>;
   lastPocketed: number[];
+  pocketedByTeam: Partial<Record<Team, number[]>>;
   scratch: boolean;
   winner?: Team;
   message: string;

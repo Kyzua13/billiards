@@ -18,7 +18,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -137,6 +138,18 @@ p {
   background: #141b18;
 }
 
+.teamPocketed {
+  display: grid;
+  gap: 6px;
+}
+
+.teamPocketedHeader {
+  margin-top: 4px;
+  color: #d6e1dc;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .pocketedBall {
   width: 26px;
   height: 26px;
@@ -220,6 +233,21 @@ p {
   background: #b44b40;
 }
 
+.musicPanel {
+  display: grid;
+  grid-template-columns: 94px 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.musicPanel button {
+  min-height: 36px;
+}
+
+.musicPanel input {
+  padding: 0;
+}
+
 .message {
   min-height: 40px;
   color: #f4efe8;
@@ -231,8 +259,9 @@ p {
 }
 
 .tableWrap {
+  position: relative;
   width: 100%;
-  overflow: auto;
+  overflow: hidden;
   border: 1px solid #33413d;
   border-radius: 8px;
   background: #101614;
@@ -247,6 +276,48 @@ canvas {
   margin: 0 auto;
   border-radius: 8px;
   touch-action: none;
+}
+
+.winnerOverlay {
+  position: absolute;
+  inset: 10px;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  background: rgba(8, 12, 10, 0.18);
+}
+
+.winnerOverlay[hidden] {
+  display: none;
+}
+
+.winnerCard {
+  width: min(460px, calc(100% - 32px));
+  border: 1px solid rgba(248, 211, 108, 0.78);
+  border-radius: 8px;
+  background: rgba(20, 27, 24, 0.92);
+  padding: 24px;
+  text-align: center;
+  box-shadow: 0 18px 55px rgba(0, 0, 0, 0.35);
+}
+
+.winnerCard span {
+  color: #b7c1bd;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.winnerCard strong {
+  display: block;
+  margin-top: 8px;
+  color: #f8d36c;
+  font-size: 34px;
+}
+
+.winnerCard p {
+  margin-top: 8px;
+  color: #f4efe8;
 }
 
 @media (max-width: 840px) {

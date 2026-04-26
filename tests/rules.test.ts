@@ -32,6 +32,7 @@ describe("8-ball rules", () => {
 
     expect(resolution.state.ruleState.teamGroups.A).toBe("solids");
     expect(resolution.state.ruleState.teamGroups.B).toBe("stripes");
+    expect(resolution.state.ruleState.pocketedByTeam.A).toContain(1);
   });
 
   it("resets the cue ball after a scratch", () => {

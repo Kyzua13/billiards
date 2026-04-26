@@ -282,10 +282,10 @@ function playShotFrames(room: Room, resolution: ReturnType<typeof applyShot>): v
     room.state.gameState.shotInProgress = true;
     broadcast(room, { type: "shot_frame", roomCode: room.state.code, frame });
     index += 1;
-    setTimeout(sendNextFrame, 33);
+    setTimeout(sendNextFrame, 40);
   };
 
-  setTimeout(sendNextFrame, 33);
+  setTimeout(sendNextFrame, 40);
 }
 
 function requestState(context: ClientContext, roomCode: string): void {
