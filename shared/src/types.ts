@@ -43,6 +43,9 @@ export interface RuleState {
   lastPocketed: number[];
   pocketedByTeam: Partial<Record<Team, number[]>>;
   scratch: boolean;
+  foul: boolean;
+  cuePlacementSeat?: Seat;
+  foulReason?: "scratch" | "no_contact" | "wrong_contact" | "eight_early";
   winner?: Team;
   message: string;
 }
@@ -83,7 +86,9 @@ export type ClientMessage =
   | { type: "join_room"; roomCode: string; name: string; clientId?: string }
   | { type: "choose_seat"; roomCode: string; seat: Seat }
   | { type: "set_name"; roomCode: string; name: string }
+  | { type: "place_cue"; roomCode: string; position: Vec2 }
   | { type: "shoot"; roomCode: string; shot: Shot }
+  | { type: "request_rematch"; roomCode: string }
   | { type: "request_state"; roomCode: string };
 
 export type ServerMessage =

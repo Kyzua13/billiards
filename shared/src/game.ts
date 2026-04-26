@@ -13,6 +13,7 @@ export function createInitialGame(): GameState {
       pocketedByTeam: { A: [], B: [] },
       lastPocketed: [],
       scratch: false,
+      foul: false,
       message: "Waiting for players"
     }
   };

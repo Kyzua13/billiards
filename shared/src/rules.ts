@@ -22,6 +22,8 @@ export function applyShot(state: GameState, activeSeat: Seat, shot: Shot, gameMo
   const result = simulateShot(state.balls, state.table, shot.angle, shot.power);
   const activeTeam = teamForSeat(activeSeat);
   const teamGroups = assignGroupsIfNeeded({ ...state, balls: result.balls }, activeTeam, result.pocketed);
+  const foul = isFoul(state, activeTeam, teamGroups, result);
+  const nextSeat = foul ? advanceSeat(activeSeat, gameMode) : activeSeat;
   const next: GameState = {
     ...state,
     balls: result.balls,
@@ -31,28 +33,40 @@ export function applyShot(state: GameState, activeSeat: Seat, shot: Shot, gameMo
       pocketedByTeam: assignPocketedToTeam(state.ruleState.pocketedByTeam, teamGroups, result.balls, result.pocketed),
       lastPocketed: result.pocketed,
       scratch: result.scratch,
+      foul,
+      cuePlacementSeat: foul ? nextSeat : undefined,
+      foulReason: foul ? getFoulReason(state, activeTeam, teamGroups, result) : undefined,
       message: ""
     },
     shotInProgress: false
   };
 
-  resolveEightBall(next, activeTeam, result.pocketed, result.scratch);
+  resolveEightBall(next, activeTeam, result, foul);
 
   if (result.scratch) {
     resetCueBall(next.table, next.balls);
   }
 
-  const keepsTurn = shouldKeepTurn(next, activeTeam, result.pocketed, result.scratch);
-  const nextSeat = next.ruleState.winner ? activeSeat : keepsTurn ? activeSeat : advanceSeat(activeSeat, gameMode);
-  next.currentTurnSeat = nextSeat;
+  const keepsTurn = shouldKeepTurn(next, activeTeam, result, foul);
+  const resolvedNextSeat = next.ruleState.winner
+    ? activeSeat
+    : keepsTurn
+      ? activeSeat
+      : advanceSeat(activeSeat, gameMode);
+  next.currentTurnSeat = resolvedNextSeat;
   next.phase = next.ruleState.winner ? "finished" : "playing";
-  next.ruleState.message = buildMessage(next, activeTeam, result.pocketed, result.scratch, keepsTurn);
+  next.ruleState.cuePlacementSeat = next.ruleState.winner || (!foul && !result.scratch && keepsTurn)
+    ? undefined
+    : foul || result.scratch
+      ? resolvedNextSeat
+      : undefined;
+  next.ruleState.message = buildMessage(next, activeTeam, result, foul, keepsTurn);
 
-  return { state: next, pocketed: result.pocketed, scratch: result.scratch, nextSeat, frames: result.frames };
+  return { state: next, pocketed: result.pocketed, scratch: result.scratch, nextSeat: resolvedNextSeat, frames: result.frames };
 }
 
 export function canShoot(state: GameState, playerSeat?: Seat): boolean {
-  return state.phase === "playing" && !state.shotInProgress && playerSeat === state.currentTurnSeat;
+  return state.phase === "playing" && !state.shotInProgress && !state.ruleState.cuePlacementSeat && playerSeat === state.currentTurnSeat;
 }
 
 export function advanceSeat(seat: Seat, gameMode: GameMode = "2v2"): Seat {
@@ -61,7 +75,7 @@ export function advanceSeat(seat: Seat, gameMode: GameMode = "2v2"): Seat {
   return seats[(index + 1) % seats.length] ?? seats[0];
 }
 
-function assignGroupsIfNeeded(
+export function assignGroupsIfNeeded(
   state: GameState,
   team: Team,
   pocketed: number[]
@@ -77,7 +91,7 @@ function assignGroupsIfNeeded(
   };
 }
 
-function assignPocketedToTeam(
+export function assignPocketedToTeam(
   current: GameState["ruleState"]["pocketedByTeam"] | undefined,
   teamGroups: Partial<Record<Team, BallGroup>>,
   balls: GameState["balls"],
@@ -105,20 +119,27 @@ function teamForGroup(teamGroups: Partial<Record<Team, BallGroup>>, group: BallG
   return undefined;
 }
 
-function resolveEightBall(state: GameState, team: Team, pocketed: number[], scratch: boolean): void {
-  if (!pocketed.includes(8)) return;
+function resolveEightBall(state: GameState, team: Team, result: ReturnType<typeof simulateShot>, foul: boolean): void {
   const otherTeam: Team = team === "A" ? "B" : "A";
   const assignedGroup = state.ruleState.teamGroups[team];
   const hasClearedGroup = assignedGroup ? state.balls.every((ball) => ball.group !== assignedGroup || ball.pocketed) : false;
-  state.ruleState.winner = !scratch && hasClearedGroup ? team : otherTeam;
+  if (result.pocketed.includes(8)) {
+    state.ruleState.winner = !foul && hasClearedGroup ? team : otherTeam;
+    return;
+  }
+  if (result.firstContactBallId === 8 && assignedGroup && !hasClearedGroup) {
+    state.ruleState.winner = otherTeam;
+    state.ruleState.foul = true;
+    state.ruleState.foulReason = "eight_early";
+  }
 }
 
-function shouldKeepTurn(state: GameState, team: Team, pocketed: number[], scratch: boolean): boolean {
-  if (scratch || state.ruleState.winner) return false;
+function shouldKeepTurn(state: GameState, team: Team, result: ReturnType<typeof simulateShot>, foul: boolean): boolean {
+  if (foul || result.scratch || state.ruleState.winner) return false;
   const assignedGroup = state.ruleState.teamGroups[team];
-  const firstGroup = firstGroupPocketed(state, pocketed);
+  const firstGroup = firstGroupPocketed(state, result.pocketed);
   if (!assignedGroup) return Boolean(firstGroup);
-  return pocketed.some((id) => {
+  return result.pocketed.some((id) => {
     const ball = state.balls.find((candidate) => candidate.id === id);
     return ball?.group === assignedGroup;
   });
@@ -132,10 +153,53 @@ function firstGroupPocketed(state: GameState, pocketed: number[]): BallGroup | u
   return undefined;
 }
 
-function buildMessage(state: GameState, team: Team, pocketed: number[], scratch: boolean, keepsTurn: boolean): string {
+function isFoul(
+  state: GameState,
+  team: Team,
+  teamGroups: Partial<Record<Team, BallGroup>>,
+  result: ReturnType<typeof simulateShot>
+): boolean {
+  if (result.scratch) return true;
+  if (result.firstContactBallId === undefined) return true;
+  const assignedGroup = teamGroups[team];
+  const contactBall = state.balls.find((ball) => ball.id === result.firstContactBallId);
+  if (!assignedGroup) return false;
+  if (contactBall?.kind === "eight") {
+    return !state.balls.every((ball) => ball.group !== assignedGroup || ball.pocketed);
+  }
+  return contactBall?.group !== assignedGroup;
+}
+
+function getFoulReason(
+  state: GameState,
+  team: Team,
+  teamGroups: Partial<Record<Team, BallGroup>>,
+  result: ReturnType<typeof simulateShot>
+): "scratch" | "no_contact" | "wrong_contact" | "eight_early" | undefined {
+  if (result.scratch) return "scratch";
+  if (result.firstContactBallId === undefined) return "no_contact";
+  const assignedGroup = teamGroups[team];
+  const contactBall = state.balls.find((ball) => ball.id === result.firstContactBallId);
+  if (contactBall?.kind === "eight" && assignedGroup) return "eight_early";
+  if (assignedGroup && contactBall?.group !== assignedGroup) return "wrong_contact";
+  return undefined;
+}
+
+function buildMessage(
+  state: GameState,
+  team: Team,
+  result: ReturnType<typeof simulateShot>,
+  foul: boolean,
+  keepsTurn: boolean
+): string {
   if (state.ruleState.winner) return `Team ${state.ruleState.winner} wins`;
-  if (scratch) return `Team ${team} scratched`;
-  if (pocketed.length === 0) return `No ball pocketed`;
+  if (foul) {
+    if (state.ruleState.foulReason === "scratch") return `Team ${team} scratched - ball in hand`;
+    if (state.ruleState.foulReason === "no_contact") return `No contact - ball in hand`;
+    if (state.ruleState.foulReason === "wrong_contact") return `Wrong contact - ball in hand`;
+    if (state.ruleState.foulReason === "eight_early") return `Illegal 8-ball`;
+  }
+  if (result.pocketed.length === 0) return `No ball pocketed`;
   if (keepsTurn) return `Team ${team} keeps the table`;
   return `Turn passes`;
 }

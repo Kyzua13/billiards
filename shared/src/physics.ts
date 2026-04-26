@@ -28,6 +28,7 @@ export interface SimulationResult {
   balls: Ball[];
   pocketed: number[];
   scratch: boolean;
+  firstContactBallId?: number;
   frames: ShotFrame[];
 }
 
@@ -36,6 +37,7 @@ export interface StepSimulationState {
   table: Table;
   pocketed: number[];
   scratch: boolean;
+  firstContactBallId?: number;
   steps: number;
   settled: boolean;
   pendingEvents: SoundEvent[];
@@ -113,6 +115,7 @@ export function createShotSimulation(balls: Ball[], table: Table, angle: number,
     table,
     pocketed: [],
     scratch: false,
+    firstContactBallId: undefined,
     steps: 0,
     settled: isSettled(next, table),
     pendingEvents
@@ -151,7 +154,13 @@ export function runSimulation(simulationOrBalls: StepSimulationState | Ball[], m
   }
 
   frames.push({ balls: cloneBalls(simulation.balls), events: [] });
-  return { balls: simulation.balls, pocketed: simulation.pocketed, scratch: simulation.scratch, frames };
+  return {
+    balls: simulation.balls,
+    pocketed: simulation.pocketed,
+    scratch: simulation.scratch,
+    firstContactBallId: simulation.firstContactBallId,
+    frames
+  };
 }
 
 function createSimulationFromMovingBalls(balls: Ball[], table: Table): StepSimulationState {
@@ -161,6 +170,7 @@ function createSimulationFromMovingBalls(balls: Ball[], table: Table): StepSimul
     table,
     pocketed: [],
     scratch: false,
+    firstContactBallId: undefined,
     steps: 0,
     settled: isSettled(next, table),
     pendingEvents: []
@@ -189,7 +199,7 @@ function stepOnce(simulation: StepSimulationState, events: SoundEvent[]): void {
 
   for (let i = 0; i < simulation.balls.length; i += 1) {
     for (let j = i + 1; j < simulation.balls.length; j += 1) {
-      const collisionIntensity = collideBalls(simulation.balls[i], simulation.balls[j], simulation.table.ballRadius);
+      const collisionIntensity = collideBalls(simulation, simulation.balls[i], simulation.balls[j], simulation.table.ballRadius);
       if (collisionIntensity > 0.08) events.push({ type: "collision", intensity: collisionIntensity });
     }
   }
@@ -285,7 +295,7 @@ function collideWithCushions(ball: Ball, table: Table): number {
   return impact;
 }
 
-function collideBalls(a: Ball, b: Ball, radius: number): number {
+function collideBalls(simulation: StepSimulationState, a: Ball, b: Ball, radius: number): number {
   if (a.pocketed || b.pocketed) return 0;
   const delta = sub(b.position, a.position);
   const dist = length(delta);
@@ -304,6 +314,10 @@ function collideBalls(a: Ball, b: Ball, radius: number): number {
   const impulse = speed * RESTITUTION_BALL;
   a.velocity = sub(a.velocity, mul(normal, impulse));
   b.velocity = add(b.velocity, mul(normal, impulse));
+  if (simulation.firstContactBallId === undefined) {
+    if (a.id === 0 && b.id !== 0) simulation.firstContactBallId = b.id;
+    else if (b.id === 0 && a.id !== 0) simulation.firstContactBallId = a.id;
+  }
   return Math.min(1, Math.abs(speed) / MAX_SPEED);
 }
 

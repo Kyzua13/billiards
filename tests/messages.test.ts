@@ -8,7 +8,9 @@ describe("message contract", () => {
       { type: "join_room", roomCode: "ABCDE", name: "Grace" },
       { type: "choose_seat", roomCode: "ABCDE", seat: "A1" },
       { type: "set_name", roomCode: "ABCDE", name: "Linus" },
+      { type: "place_cue", roomCode: "ABCDE", position: { x: 10, y: 10 } },
       { type: "shoot", roomCode: "ABCDE", shot: { angle: 0, power: 0.5 } },
+      { type: "request_rematch", roomCode: "ABCDE" },
       { type: "request_state", roomCode: "ABCDE" }
     ];
     const incoming: ServerMessage = { type: "shot_frame", roomCode: "ABCDE", frame: { balls: [], events: [] } };
@@ -18,7 +20,9 @@ describe("message contract", () => {
       "join_room",
       "choose_seat",
       "set_name",
+      "place_cue",
       "shoot",
+      "request_rematch",
       "request_state"
     ]);
     expect(incoming.type).toBe("shot_frame");

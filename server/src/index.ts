@@ -11,6 +11,7 @@ import {
   applyShot,
   canShoot,
   createInitialGame,
+  isInPocket,
   teamForSeat,
   type ClientMessage,
   type GameMode,
@@ -154,8 +155,14 @@ function handleMessage(context: ClientContext, message: ClientMessage): void {
     case "set_name":
       setName(context, message.roomCode, message.name);
       break;
+    case "place_cue":
+      placeCue(context, message.roomCode, message.position);
+      break;
     case "shoot":
       shoot(context, message.roomCode, message.shot);
+      break;
+    case "request_rematch":
+      requestRematch(context, message.roomCode);
       break;
     case "request_state":
       requestState(context, message.roomCode);
@@ -274,6 +281,43 @@ function shoot(context: ClientContext, roomCode: string, shot: { angle: number; 
   }, 120);
 }
 
+function placeCue(context: ClientContext, roomCode: string, position: { x: number; y: number }): void {
+  const room = requireRoom(roomCode);
+  const player = requirePlayer(room, context.playerId);
+  if (!player.seat || room.state.gameState.ruleState.cuePlacementSeat !== player.seat) {
+    throw new Error("You cannot place the cue ball right now");
+  }
+
+  const cue = room.state.gameState.balls.find((ball) => ball.id === 0);
+  if (!cue) throw new Error("Cue ball missing");
+
+  if (!isValidCuePlacement(room.state.gameState, position)) {
+    throw new Error("Invalid cue placement");
+  }
+
+  cue.position = clampPoint(position, room.state.gameState.table);
+  cue.velocity = { x: 0, y: 0 };
+  cue.pocketed = false;
+  room.state.gameState.ruleState.cuePlacementSeat = undefined;
+  room.state.gameState.ruleState.message = "Cue ball placed";
+  broadcast(room, { type: "player_update", room: room.state });
+  broadcast(room, { type: "turn_changed", room: room.state });
+}
+
+function requestRematch(context: ClientContext, roomCode: string): void {
+  const room = requireRoom(roomCode);
+  const player = requirePlayer(room, context.playerId);
+  if (!player.seat) throw new Error("You must be seated to request a rematch");
+  room.state.gameState = {
+    ...createInitialGame(),
+    phase: "playing",
+    currentTurnSeat: "A1"
+  };
+  room.state.gameState.ruleState.message = "New game started";
+  broadcast(room, { type: "player_update", room: room.state });
+  broadcast(room, { type: "turn_changed", room: room.state });
+}
+
 function requestState(context: ClientContext, roomCode: string): void {
   const room = requireRoom(roomCode);
   send(context.socket, { type: "state_snapshot", room: room.state, playerId: context.playerId });
@@ -336,4 +380,27 @@ function getLanAddresses(): Array<{ name: string; address: string }> {
     }
   }
   return addresses;
+}
+
+function clampPoint(position: { x: number; y: number }, table: RoomState["gameState"]["table"]): { x: number; y: number } {
+  const minX = table.cushion + table.ballRadius;
+  const maxX = table.width - table.cushion - table.ballRadius;
+  const minY = table.cushion + table.ballRadius;
+  const maxY = table.height - table.cushion - table.ballRadius;
+  return {
+    x: Math.min(maxX, Math.max(minX, position.x)),
+    y: Math.min(maxY, Math.max(minY, position.y))
+  };
+}
+
+function isValidCuePlacement(state: RoomState["gameState"], position: { x: number; y: number }): boolean {
+  const cueRadius = state.table.ballRadius;
+  const clamped = clampPoint(position, state.table);
+  if (isInPocket(clamped, state.table)) return false;
+  return state.balls.every((ball) => {
+    if (ball.id === 0 || ball.pocketed) return true;
+    const dx = ball.position.x - clamped.x;
+    const dy = ball.position.y - clamped.y;
+    return Math.hypot(dx, dy) >= cueRadius * 2;
+  });
 }

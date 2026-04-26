@@ -8,6 +8,7 @@ import {
   stepSimulation,
   teamForSeat,
   type Ball,
+  type BallGroup,
   type GameMode,
   type RoomState,
   type ServerMessage,
@@ -21,6 +22,8 @@ import "./styles.css";
 const NAME_KEY = "lan-pool-name";
 const CLIENT_ID_KEY = "lan-pool-client-id";
 const LANGUAGE_KEY = "lan-pool-language";
+const COMPACT_KEY = "lan-pool-compact";
+const MUSIC_VOLUME_KEY = "lan-pool-music-volume";
 const TABLE_WIDTH = 960;
 const TABLE_HEIGHT = 520;
 const SOUND_LIMIT = 2;
@@ -68,14 +71,27 @@ interface Locale {
   playing: string;
   turn: string;
   aimLocked: string;
+  ballInHand: string;
+  placeCue: string;
   open: string;
   noneYet: string;
   createOrJoinTable: string;
   gameOver: string;
+  rematch: string;
+  compact: string;
+  reconnecting: string;
+  music: string;
+  groupOpen: string;
+  groupSolids: string;
+  groupStripes: string;
   teamWins: (team: Team) => string;
   teamFallback: (team: Team) => string;
   pocketedTitle: (team: Team, ball: number) => string;
   unableToConnect: string;
+  foulNoContact: string;
+  foulWrongContact: string;
+  foulScratch: string;
+  foulEightEarly: string;
   rule: Record<string, string>;
 }
 
@@ -102,14 +118,27 @@ const LOCALES: Record<Language, Locale> = {
     playing: "Игра идёт",
     turn: "Ход",
     aimLocked: "Прицел зафиксирован",
+    ballInHand: "Шар в руки",
+    placeCue: "Поставь биток",
     open: "Свободно",
     noneYet: "Пока нет",
     createOrJoinTable: "Создай комнату или войди",
     gameOver: "Игра окончена",
+    rematch: "Новая партия",
+    compact: "Компактно",
+    reconnecting: "Переподключение...",
+    music: "Музыка",
+    groupOpen: "Открытый стол",
+    groupSolids: "Шары solids",
+    groupStripes: "Шары stripes",
     teamWins: (team) => `Победила команда ${team}`,
     teamFallback: (team) => `Команда ${team}`,
     pocketedTitle: (team, ball) => `Команда ${team} забила шар ${ball}`,
     unableToConnect: "Не удалось подключиться к серверу",
+    foulNoContact: "Нет касания - шар в руки",
+    foulWrongContact: "Неправильное касание - шар в руки",
+    foulScratch: "Фол: биток в лузе - шар в руки",
+    foulEightEarly: "Запрещённый 8-ball",
     rule: {
       Playing: "Игра идёт",
       "No ball pocketed": "Шары не забиты",
@@ -119,7 +148,11 @@ const LOCALES: Record<Language, Locale> = {
       "Team A scratched": "Фол: команда A забила биток",
       "Team B scratched": "Фол: команда B забила биток",
       "Team A wins": "Победила команда A",
-      "Team B wins": "Победила команда B"
+      "Team B wins": "Победила команда B",
+      "Ball in hand": "Шар в руки",
+      "Cue ball placed": "Биток установлен",
+      "New game started": "Новая партия началась",
+      "Illegal 8-ball": "Нарушение на 8-ball"
     }
   },
   uk: {
@@ -144,14 +177,27 @@ const LOCALES: Record<Language, Locale> = {
     playing: "Гра триває",
     turn: "Хід",
     aimLocked: "Приціл зафіксовано",
+    ballInHand: "Куля в руки",
+    placeCue: "Постав биток",
     open: "Вільно",
     noneYet: "Поки немає",
     createOrJoinTable: "Створи кімнату або увійди",
     gameOver: "Гру завершено",
+    rematch: "Нова партія",
+    compact: "Компактно",
+    reconnecting: "Перепідключення...",
+    music: "Музика",
+    groupOpen: "Відкритий стіл",
+    groupSolids: "Кулі solids",
+    groupStripes: "Кулі stripes",
     teamWins: (team) => `Перемогла команда ${team}`,
     teamFallback: (team) => `Команда ${team}`,
     pocketedTitle: (team, ball) => `Команда ${team} забила кулю ${ball}`,
     unableToConnect: "Не вдалося підключитися до сервера",
+    foulNoContact: "Немає дотику - куля в руки",
+    foulWrongContact: "Неправильний дотик - куля в руки",
+    foulScratch: "Фол: биток у лузі - куля в руки",
+    foulEightEarly: "Заборонений 8-ball",
     rule: {
       Playing: "Гра триває",
       "No ball pocketed": "Кулі не забито",
@@ -161,7 +207,11 @@ const LOCALES: Record<Language, Locale> = {
       "Team A scratched": "Фол: команда A забила биток",
       "Team B scratched": "Фол: команда B забила биток",
       "Team A wins": "Перемогла команда A",
-      "Team B wins": "Перемогла команда B"
+      "Team B wins": "Перемогла команда B",
+      "Ball in hand": "Куля в руки",
+      "Cue ball placed": "Биток встановлено",
+      "New game started": "Нова партія почалася",
+      "Illegal 8-ball": "Порушення на 8-ball"
     }
   },
   en: {
@@ -186,14 +236,27 @@ const LOCALES: Record<Language, Locale> = {
     playing: "Playing",
     turn: "Turn",
     aimLocked: "Aim locked",
+    ballInHand: "Ball in hand",
+    placeCue: "Place cue ball",
     open: "Open",
     noneYet: "None yet",
     createOrJoinTable: "Create or join a LAN room",
     gameOver: "Game over",
+    rematch: "Rematch",
+    compact: "Compact",
+    reconnecting: "Reconnecting...",
+    music: "Music",
+    groupOpen: "Open table",
+    groupSolids: "Solids",
+    groupStripes: "Stripes",
     teamWins: (team) => `Team ${team} wins`,
     teamFallback: (team) => `Team ${team}`,
     pocketedTitle: (team, ball) => `Team ${team} pocketed ball ${ball}`,
     unableToConnect: "Unable to connect to server",
+    foulNoContact: "No contact - ball in hand",
+    foulWrongContact: "Wrong contact - ball in hand",
+    foulScratch: "Scratch - ball in hand",
+    foulEightEarly: "Illegal 8-ball",
     rule: {
       Playing: "Playing",
       "No ball pocketed": "No ball pocketed",
@@ -203,7 +266,11 @@ const LOCALES: Record<Language, Locale> = {
       "Team A scratched": "Team A scratched",
       "Team B scratched": "Team B scratched",
       "Team A wins": "Team A wins",
-      "Team B wins": "Team B wins"
+      "Team B wins": "Team B wins",
+      "Ball in hand": "Ball in hand",
+      "Cue ball placed": "Cue ball placed",
+      "New game started": "New game started",
+      "Illegal 8-ball": "Illegal 8-ball"
     }
   }
 };
@@ -220,6 +287,9 @@ interface AppState {
   gameMode: GameMode;
   language: Language;
   languageMenuOpen: boolean;
+  compactMode: boolean;
+  musicVolume: number;
+  placingCue: boolean;
   error: string;
 }
 
@@ -236,6 +306,9 @@ const state: AppState = {
   gameMode: "1v1",
   language: getInitialLanguage(),
   languageMenuOpen: false,
+  compactMode: localStorage.getItem(COMPACT_KEY) === "true",
+  musicVolume: Number(localStorage.getItem(MUSIC_VOLUME_KEY) ?? "0.28"),
+  placingCue: false,
   error: ""
 };
 
@@ -257,16 +330,21 @@ app.innerHTML = `
           <button id="createBtn"></button>
           <button id="joinBtn"></button>
         </div>
-        <div class="languagePicker">
-          <button id="languageBtn" class="languageButton" type="button" aria-haspopup="true" aria-expanded="false"></button>
-          <div id="languageMenu" class="languageMenu" hidden>
-            <button type="button" data-language="ru">🇷🇺</button>
-            <button type="button" data-language="uk">🇺🇦</button>
-            <button type="button" data-language="en">🇺🇸</button>
+        <div class="cornerControls">
+          <button id="compactBtn" class="compactButton" type="button" title="Compact mode">◫</button>
+          <div class="languagePicker">
+            <button id="languageBtn" class="languageButton" type="button" aria-haspopup="true" aria-expanded="false"></button>
+            <div id="languageMenu" class="languageMenu" hidden>
+              <button type="button" data-language="ru">🇷🇺</button>
+              <button type="button" data-language="uk">🇺🇦</button>
+              <button type="button" data-language="en">🇺🇸</button>
+            </div>
           </div>
         </div>
       </div>
     </section>
+
+    <div id="reconnectBanner" class="reconnectBanner" hidden></div>
 
     <section class="layout">
       <aside class="panel">
@@ -277,9 +355,9 @@ app.innerHTML = `
         <div class="pocketedPanel">
           <div id="pocketedTitle" class="panelTitle">Pocketed balls</div>
           <div class="teamPocketed">
-            <div id="teamAHeader" class="teamPocketedHeader">Team A</div>
+            <div class="teamPocketedHeader"><span id="teamAHeader">Team A</span><small id="teamAGroup"></small></div>
             <div id="pocketedA" class="pocketedBalls"></div>
-            <div id="teamBHeader" class="teamPocketedHeader">Team B</div>
+            <div class="teamPocketedHeader"><span id="teamBHeader">Team B</span><small id="teamBGroup"></small></div>
             <div id="pocketedB" class="pocketedBalls"></div>
           </div>
         </div>
@@ -290,15 +368,9 @@ app.innerHTML = `
           <span id="powerText">45%</span>
         </div>
         <button id="shootBtn" class="shoot" disabled></button>
-        <div class="radioPanel">
-          <div id="radioTitle" class="panelTitle">Lofi Girl</div>
-          <iframe
-            title="Lofi Girl radio"
-            src="https://www.youtube.com/embed/jfKfPfyJRdk?controls=1&rel=0"
-            allow="autoplay; encrypted-media; picture-in-picture"
-            referrerpolicy="strict-origin-when-cross-origin"
-            loading="lazy"
-          ></iframe>
+        <div class="musicPanel">
+          <div id="musicTitle" class="panelTitle">Lofi</div>
+          <input id="musicVolume" type="range" min="0" max="1" step="0.01" aria-label="Music volume" />
         </div>
         <p id="message" class="message"></p>
         <p id="error" class="error"></p>
@@ -310,6 +382,7 @@ app.innerHTML = `
             <span id="winnerKicker">Game over</span>
             <strong id="winnerTitle">Team wins</strong>
             <p id="winnerNames"></p>
+            <button id="rematchBtn" class="rematchBtn" type="button">Rematch</button>
           </div>
         </div>
       </section>
@@ -325,24 +398,35 @@ const modeInput = document.querySelector<HTMLSelectElement>("#modeInput")!;
 const powerInput = document.querySelector<HTMLInputElement>("#powerInput")!;
 const powerText = document.querySelector<HTMLSpanElement>("#powerText")!;
 const shootBtn = document.querySelector<HTMLButtonElement>("#shootBtn")!;
+const compactBtn = document.querySelector<HTMLButtonElement>("#compactBtn")!;
 const languageBtn = document.querySelector<HTMLButtonElement>("#languageBtn")!;
 const languageMenu = document.querySelector<HTMLDivElement>("#languageMenu")!;
+const musicVolume = document.querySelector<HTMLInputElement>("#musicVolume")!;
+const rematchBtn = document.querySelector<HTMLButtonElement>("#rematchBtn")!;
+const teamAGroup = document.querySelector<HTMLElement>("#teamAGroup")!;
+const teamBGroup = document.querySelector<HTMLElement>("#teamBGroup")!;
+const musicTitle = document.querySelector<HTMLElement>("#musicTitle")!;
 
 let audioContext: AudioContext | undefined;
+let musicGain: GainNode | undefined;
+let musicTimer: number | undefined;
 let renderedPixelRatio = 1;
 let tableRenderPending = false;
 let localSimulation: StepSimulationState | undefined;
 let localAnimationId: number | undefined;
 let pendingResolvedRoom: RoomState | undefined;
 let lastSoundAt = 0;
+let placingCuePoint: Vec2 | undefined;
 
 nameInput.value = localStorage.getItem(NAME_KEY) ?? "";
 powerInput.value = String(state.power);
+musicVolume.value = String(state.musicVolume);
 
 document.querySelector<HTMLButtonElement>("#createBtn")!.addEventListener("click", () => {
   localStorage.setItem(NAME_KEY, nameInput.value.trim());
   state.gameMode = modeInput.value === "2v2" ? "2v2" : "1v1";
   ensureAudio();
+  startMusic();
   ensureSocket().then(() =>
     send({ type: "create_room", name: nameInput.value, gameMode: state.gameMode, clientId: state.playerId })
   );
@@ -351,9 +435,16 @@ document.querySelector<HTMLButtonElement>("#createBtn")!.addEventListener("click
 document.querySelector<HTMLButtonElement>("#joinBtn")!.addEventListener("click", () => {
   localStorage.setItem(NAME_KEY, nameInput.value.trim());
   ensureAudio();
+  startMusic();
   ensureSocket().then(() =>
     send({ type: "join_room", roomCode: roomInput.value.toUpperCase(), name: nameInput.value, clientId: state.playerId })
   );
+});
+
+compactBtn.addEventListener("click", () => {
+  state.compactMode = !state.compactMode;
+  localStorage.setItem(COMPACT_KEY, String(state.compactMode));
+  renderChrome();
 });
 
 nameInput.addEventListener("change", () => {
@@ -371,6 +462,14 @@ shootBtn.addEventListener("click", () => {
   if (!state.room || !state.aimLocked || state.power <= 0) return;
   ensureAudio();
   send({ type: "shoot", roomCode: state.room.code, shot: { angle: state.aimAngle, power: state.power } });
+});
+
+musicVolume.addEventListener("input", () => {
+  state.musicVolume = Number(musicVolume.value);
+  localStorage.setItem(MUSIC_VOLUME_KEY, String(state.musicVolume));
+  if (musicGain && audioContext) {
+    musicGain.gain.setTargetAtTime(state.musicVolume * 0.18, audioContext.currentTime, 0.04);
+  }
 });
 
 languageBtn.addEventListener("click", () => {
@@ -397,9 +496,21 @@ document.addEventListener("click", (event) => {
   }
 });
 
+rematchBtn.addEventListener("click", () => {
+  if (!state.room) return;
+  send({ type: "request_rematch", roomCode: state.room.code });
+});
+
 canvas.addEventListener("pointermove", (event) => {
   const room = state.room;
-  if (!room || !state.dragging) return;
+  if (!room) return;
+  const me = getMe();
+  if (room.gameState.ruleState.cuePlacementSeat === me?.seat && !room.gameState.shotInProgress) {
+    placingCuePoint = eventToTable(event);
+    renderTable();
+    return;
+  }
+  if (!state.dragging) return;
   const cue = room.gameState.balls.find((ball) => ball.id === 0 && !ball.pocketed);
   if (!cue) return;
   const point = eventToTable(event);
@@ -411,10 +522,19 @@ canvas.addEventListener("pointermove", (event) => {
 canvas.addEventListener("pointerdown", (event) => {
   if (event.pointerType === "mouse" && event.button !== 0) return;
   const room = state.room;
-  if (!room || !canShoot(room.gameState, getMe()?.seat)) return;
+  const me = getMe();
+  if (!room) return;
+  if (room.gameState.ruleState.cuePlacementSeat === me?.seat && !room.gameState.shotInProgress) {
+    placingCuePoint = eventToTable(event);
+    canvas.setPointerCapture(event.pointerId);
+    renderTable();
+    return;
+  }
+  if (!canShoot(room.gameState, me?.seat)) return;
   const cue = room.gameState.balls.find((ball) => ball.id === 0 && !ball.pocketed);
   if (!cue) return;
   ensureAudio();
+  startMusic();
   const point = eventToTable(event);
   state.aimAngle = Math.atan2(point.y - cue.position.y, point.x - cue.position.x);
   state.aimLocked = false;
@@ -426,6 +546,15 @@ canvas.addEventListener("pointerdown", (event) => {
 canvas.addEventListener("pointerup", (event) => {
   const wasDragging = state.dragging;
   state.dragging = false;
+  const room = state.room;
+  const me = getMe();
+  if (room && room.gameState.ruleState.cuePlacementSeat === me?.seat && placingCuePoint) {
+    send({ type: "place_cue", roomCode: room.code, position: placingCuePoint });
+    placingCuePoint = undefined;
+    if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+    renderTable();
+    return;
+  }
   if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
   if (wasDragging && state.room && canShoot(state.room.gameState, getMe()?.seat)) {
     state.aimLocked = true;
@@ -435,6 +564,7 @@ canvas.addEventListener("pointerup", (event) => {
 
 canvas.addEventListener("pointercancel", () => {
   state.dragging = false;
+  placingCuePoint = undefined;
   render();
 });
 
@@ -517,10 +647,14 @@ function applyRoom(room: RoomState, clearAim: boolean): void {
   if (clearAim) state.aimLocked = false;
   state.gameMode = room.gameMode;
   modeInput.value = room.gameMode;
+  if (room.gameState.ruleState.cuePlacementSeat !== getMe()?.seat) {
+    placingCuePoint = undefined;
+  }
 }
 
 function startLocalShot(room: RoomState, startBalls: Ball[], shot: { angle: number; power: number }): void {
   pendingResolvedRoom = undefined;
+  placingCuePoint = undefined;
   stopLocalShotAnimation();
   state.room = {
     ...room,
@@ -550,10 +684,13 @@ function renderChrome(): void {
   const roomCode = document.querySelector<HTMLElement>("#roomCode")!;
   const message = document.querySelector<HTMLParagraphElement>("#message")!;
   const error = document.querySelector<HTMLParagraphElement>("#error")!;
+  const reconnectBanner = document.querySelector<HTMLDivElement>("#reconnectBanner")!;
   const active = getCurrentPlayer();
   const room = state.room;
 
   status.textContent = state.connected ? t.connected : t.disconnected;
+  reconnectBanner.hidden = state.connected;
+  reconnectBanner.textContent = state.connected ? "" : room ? t.reconnecting : t.disconnected;
   nameInput.placeholder = t.namePlaceholder;
   roomInput.placeholder = t.roomPlaceholder;
   modeInput.ariaLabel = t.gameModeLabel;
@@ -563,8 +700,10 @@ function renderChrome(): void {
   document.querySelector<HTMLElement>("#pocketedTitle")!.textContent = t.pocketedBalls;
   document.querySelector<HTMLElement>("#teamAHeader")!.textContent = t.teamA;
   document.querySelector<HTMLElement>("#teamBHeader")!.textContent = t.teamB;
+  teamAGroup.textContent = groupLabel(room?.gameState.ruleState.teamGroups.A);
+  teamBGroup.textContent = groupLabel(room?.gameState.ruleState.teamGroups.B);
   document.querySelector<HTMLLabelElement>("#powerLabel")!.textContent = t.power;
-  document.querySelector<HTMLElement>("#radioTitle")!.textContent = t.lofiGirl;
+  musicTitle.textContent = t.music;
   roomCode.textContent = room?.code ?? "-";
   powerText.textContent = `${Math.round(state.power * 100)}%`;
   message.textContent = room
@@ -573,7 +712,18 @@ function renderChrome(): void {
       }`
     : t.createOrJoin;
   error.textContent = translateClientError(state.error);
-  shootBtn.disabled = !room || !canShoot(room.gameState, getMe()?.seat) || !state.aimLocked || state.power <= 0;
+  if (room?.gameState.ruleState.cuePlacementSeat) {
+    message.textContent = `${message.textContent} · ${t.ballInHand}`;
+    if (room.gameState.ruleState.cuePlacementSeat === getMe()?.seat) {
+      message.textContent = `${message.textContent} · ${t.placeCue}`;
+    }
+  }
+  shootBtn.disabled =
+    !room ||
+    !canShoot(room.gameState, getMe()?.seat) ||
+    !state.aimLocked ||
+    state.power <= 0 ||
+    room.gameState.ruleState.cuePlacementSeat === getMe()?.seat;
   shootBtn.textContent = t.shoot;
   modeInput.disabled = Boolean(room);
   languageBtn.textContent = t.flag;
@@ -583,6 +733,13 @@ function renderChrome(): void {
   for (const option of languageMenu.querySelectorAll<HTMLButtonElement>("[data-language]")) {
     option.classList.toggle("active", option.dataset.language === state.language);
   }
+  compactBtn.textContent = "◫";
+  compactBtn.title = t.compact;
+  document.querySelector<HTMLElement>(".shell")?.classList.toggle("compact", state.compactMode);
+  rematchBtn.textContent = t.rematch;
+  rematchBtn.textContent = t.rematch;
+  rematchBtn.hidden = room?.gameState.phase !== "finished";
+  musicVolume.value = String(state.musicVolume);
   renderWinner();
 }
 
@@ -664,10 +821,15 @@ function renderTable(): void {
     ctx.fill();
   }
 
-  if (canShoot(room.gameState, getMe()?.seat)) drawPreview(room);
+  if (canShoot(room.gameState, getMe()?.seat)) {
+    drawPreview(room);
+  }
 
   for (const ball of room.gameState.balls) {
-    if (!ball.pocketed) drawBall(ball);
+    if (ball.pocketed) continue;
+    const placementActive = room.gameState.ruleState.cuePlacementSeat === getMe()?.seat;
+    const displayBall = ball.id === 0 && placementActive && placingCuePoint ? { ...ball, position: placingCuePoint } : ball;
+    drawBall(displayBall);
   }
 }
 
@@ -887,6 +1049,7 @@ function stopLocalShotAnimation(): void {
   if (localAnimationId !== undefined) cancelAnimationFrame(localAnimationId);
   localAnimationId = undefined;
   localSimulation = undefined;
+  placingCuePoint = undefined;
 }
 
 function getWsUrl(): string {
@@ -929,4 +1092,80 @@ function translateClientError(message: string): string {
   if (!message) return "";
   if (message === "unableToConnect") return locale().unableToConnect;
   return message;
+}
+
+function groupLabel(group?: BallGroup): string {
+  const t = locale();
+  if (!group) return t.groupOpen;
+  return group === "solids" ? t.groupSolids : t.groupStripes;
+}
+
+function startMusic(): void {
+  ensureAudio();
+  if (!audioContext || musicTimer !== undefined) return;
+  musicGain ??= audioContext.createGain();
+  musicGain.gain.setValueAtTime(state.musicVolume * 0.18, audioContext.currentTime);
+  musicGain.connect(audioContext.destination);
+  playLofiLoop();
+  musicTimer = window.setInterval(playLofiLoop, 2400);
+}
+
+function stopMusic(): void {
+  if (musicTimer !== undefined) {
+    window.clearInterval(musicTimer);
+    musicTimer = undefined;
+  }
+}
+
+function playLofiLoop(): void {
+  if (!audioContext || !musicGain) return;
+  const now = audioContext.currentTime;
+  const chords = [
+    [196, 246.94, 293.66, 369.99],
+    [174.61, 220, 261.63, 329.63],
+    [164.81, 196, 246.94, 311.13],
+    [185, 233.08, 277.18, 349.23]
+  ];
+  const chord = chords[Math.floor((now / 2.4) % chords.length)];
+  chord.forEach((frequency, index) => playMusicTone(frequency, now + index * 0.025, 1.95, 0.027, "sine"));
+  playMusicTone(chord[0] / 2, now, 1.3, 0.042, "triangle");
+  playMusicTone(chord[2] * 2, now + 1.18, 0.42, 0.014, "sine");
+  playMusicTone(chord[1] * 2, now + 1.62, 0.36, 0.011, "sine");
+  playNoise(now + 0.08, 0.7, 0.012);
+}
+
+function playMusicTone(
+  frequency: number,
+  start: number,
+  duration: number,
+  gainValue: number,
+  type: OscillatorType
+): void {
+  if (!audioContext || !musicGain) return;
+  const oscillator = audioContext.createOscillator();
+  const gain = audioContext.createGain();
+  oscillator.type = type;
+  oscillator.frequency.setValueAtTime(frequency, start);
+  gain.gain.setValueAtTime(0.001, start);
+  gain.gain.exponentialRampToValueAtTime(gainValue, start + 0.08);
+  gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+  oscillator.connect(gain);
+  gain.connect(musicGain);
+  oscillator.start(start);
+  oscillator.stop(start + duration);
+}
+
+function playNoise(start: number, duration: number, gainValue: number): void {
+  if (!audioContext || !musicGain) return;
+  const buffer = audioContext.createBuffer(1, Math.floor(audioContext.sampleRate * duration), audioContext.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < data.length; i += 1) data[i] = (Math.random() * 2 - 1) * 0.35;
+  const source = audioContext.createBufferSource();
+  const gain = audioContext.createGain();
+  source.buffer = buffer;
+  gain.gain.setValueAtTime(gainValue, start);
+  gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+  source.connect(gain);
+  gain.connect(musicGain);
+  source.start(start);
 }

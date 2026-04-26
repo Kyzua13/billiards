@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { advanceSeat, applyShot, canShoot, createInitialGame } from "../shared/src/index.ts";
+import {
+  advanceSeat,
+  applyShot,
+  assignGroupsIfNeeded,
+  assignPocketedToTeam,
+  canShoot,
+  createInitialGame
+} from "../shared/src/index.ts";
 
 describe("8-ball rules", () => {
   it("advances 2v2 seats in fixed order", () => {
@@ -25,40 +32,42 @@ describe("8-ball rules", () => {
   it("assigns groups after a legal first pocket", () => {
     const state = createInitialGame();
     state.phase = "playing";
-    const solid = state.balls.find((ball) => ball.id === 1)!;
-    solid.position = { x: state.table.pockets[0].x, y: state.table.pockets[0].y };
-
-    const resolution = applyShot(state, "A1", { angle: 0, power: 0 }, "1v1");
-
-    expect(resolution.state.ruleState.teamGroups.A).toBe("solids");
-    expect(resolution.state.ruleState.teamGroups.B).toBe("stripes");
-    expect(resolution.state.ruleState.pocketedByTeam.A).toContain(1);
+    const nextGroups = assignGroupsIfNeeded(state, "A", [1]);
+    expect(nextGroups.A).toBe("solids");
+    expect(nextGroups.B).toBe("stripes");
   });
 
-  it("assigns pocketed balls to the team that owns their group", () => {
+  it("assigns pocketed balls to the owning team", () => {
     const state = createInitialGame();
-    state.phase = "playing";
-    state.ruleState.teamGroups = { A: "solids", B: "stripes" };
-    const stripe = state.balls.find((ball) => ball.id === 9)!;
-    stripe.position = { x: state.table.pockets[0].x, y: state.table.pockets[0].y };
+    const nextGroups = { A: "solids" as const, B: "stripes" as const };
+    const pocketed = assignPocketedToTeam({ A: [], B: [] }, nextGroups, state.balls, [9]);
 
-    const resolution = applyShot(state, "A1", { angle: 0, power: 0 }, "1v1");
-
-    expect(resolution.state.ruleState.pocketedByTeam.A).not.toContain(9);
-    expect(resolution.state.ruleState.pocketedByTeam.B).toContain(9);
+    expect(pocketed.A).not.toContain(9);
+    expect(pocketed.B).toContain(9);
   });
 
-  it("does not add the eight ball to pocketed team lists", () => {
+  it("gives ball in hand after a no-contact foul", () => {
     const state = createInitialGame();
     state.phase = "playing";
-    state.ruleState.teamGroups = { A: "solids", B: "stripes" };
-    const eight = state.balls.find((ball) => ball.id === 8)!;
-    eight.position = { x: state.table.pockets[0].x, y: state.table.pockets[0].y };
+    const resolution = applyShot(state, "A1", { angle: 0, power: 0 }, "1v1");
+
+    expect(resolution.state.ruleState.foul).toBe(true);
+    expect(resolution.state.ruleState.foulReason).toBe("no_contact");
+    expect(resolution.state.ruleState.cuePlacementSeat).toBe("B1");
+  });
+
+  it("gives ball in hand after a scratch", () => {
+    const state = createInitialGame();
+    state.phase = "playing";
+    const cue = state.balls.find((ball) => ball.id === 0)!;
+    cue.position = { x: state.table.pockets[0].x, y: state.table.pockets[0].y };
 
     const resolution = applyShot(state, "A1", { angle: 0, power: 0 }, "1v1");
 
-    expect(resolution.state.ruleState.pocketedByTeam.A).not.toContain(8);
-    expect(resolution.state.ruleState.pocketedByTeam.B).not.toContain(8);
+    expect(resolution.scratch).toBe(true);
+    expect(resolution.state.ruleState.foul).toBe(true);
+    expect(resolution.state.ruleState.foulReason).toBe("scratch");
+    expect(resolution.state.ruleState.cuePlacementSeat).toBe("B1");
   });
 
   it("resets the cue ball after a scratch", () => {

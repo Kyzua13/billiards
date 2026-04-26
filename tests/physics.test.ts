@@ -35,6 +35,7 @@ describe("physics", () => {
     expect(object.position.x).toBeGreaterThan(221);
     expect(Math.abs(cue.position.y - object.position.y)).toBeLessThan(1);
     expect(result.frames.length).toBeGreaterThan(0);
+    expect(result.firstContactBallId).toBe(1);
   });
 
   it("rebounds from cushions", () => {
