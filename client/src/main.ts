@@ -20,9 +20,7 @@ import "./styles.css";
 
 const NAME_KEY = "lan-pool-name";
 const CLIENT_ID_KEY = "lan-pool-client-id";
-const MUSIC_ENABLED_KEY = "lan-pool-music-enabled";
-const MUSIC_MODE_KEY = "lan-pool-music-mode";
-const MUSIC_VOLUME_KEY = "lan-pool-music-volume";
+const LANGUAGE_KEY = "lan-pool-language";
 const TABLE_WIDTH = 960;
 const TABLE_HEIGHT = 520;
 const SOUND_LIMIT = 2;
@@ -46,6 +44,170 @@ const BALL_PALETTE: Record<number, string> = {
   15: "#7d2b28"
 };
 
+type Language = "ru" | "uk" | "en";
+
+interface Locale {
+  flag: string;
+  nativeName: string;
+  namePlaceholder: string;
+  roomPlaceholder: string;
+  gameModeLabel: string;
+  create: string;
+  join: string;
+  connected: string;
+  disconnected: string;
+  room: string;
+  pocketedBalls: string;
+  team: string;
+  teamA: string;
+  teamB: string;
+  power: string;
+  shoot: string;
+  lofiGirl: string;
+  createOrJoin: string;
+  playing: string;
+  turn: string;
+  aimLocked: string;
+  open: string;
+  noneYet: string;
+  createOrJoinTable: string;
+  gameOver: string;
+  teamWins: (team: Team) => string;
+  teamFallback: (team: Team) => string;
+  pocketedTitle: (team: Team, ball: number) => string;
+  unableToConnect: string;
+  rule: Record<string, string>;
+}
+
+const LOCALES: Record<Language, Locale> = {
+  ru: {
+    flag: "🇷🇺",
+    nativeName: "Русский",
+    namePlaceholder: "Имя",
+    roomPlaceholder: "Комната",
+    gameModeLabel: "Режим игры",
+    create: "Создать",
+    join: "Войти",
+    connected: "Подключено",
+    disconnected: "Отключено",
+    room: "Комната",
+    pocketedBalls: "Забитые шары",
+    team: "Команда",
+    teamA: "Команда A",
+    teamB: "Команда B",
+    power: "Сила",
+    shoot: "Удар",
+    lofiGirl: "Lofi Girl",
+    createOrJoin: "Создай комнату или войди в существующую",
+    playing: "Игра идёт",
+    turn: "Ход",
+    aimLocked: "Прицел зафиксирован",
+    open: "Свободно",
+    noneYet: "Пока нет",
+    createOrJoinTable: "Создай комнату или войди",
+    gameOver: "Игра окончена",
+    teamWins: (team) => `Победила команда ${team}`,
+    teamFallback: (team) => `Команда ${team}`,
+    pocketedTitle: (team, ball) => `Команда ${team} забила шар ${ball}`,
+    unableToConnect: "Не удалось подключиться к серверу",
+    rule: {
+      Playing: "Игра идёт",
+      "No ball pocketed": "Шары не забиты",
+      "Turn passes": "Ход переходит",
+      "Team A keeps the table": "Команда A продолжает ход",
+      "Team B keeps the table": "Команда B продолжает ход",
+      "Team A scratched": "Фол: команда A забила биток",
+      "Team B scratched": "Фол: команда B забила биток",
+      "Team A wins": "Победила команда A",
+      "Team B wins": "Победила команда B"
+    }
+  },
+  uk: {
+    flag: "🇺🇦",
+    nativeName: "Українська",
+    namePlaceholder: "Ім'я",
+    roomPlaceholder: "Кімната",
+    gameModeLabel: "Режим гри",
+    create: "Створити",
+    join: "Увійти",
+    connected: "Підключено",
+    disconnected: "Відключено",
+    room: "Кімната",
+    pocketedBalls: "Забиті кулі",
+    team: "Команда",
+    teamA: "Команда A",
+    teamB: "Команда B",
+    power: "Сила",
+    shoot: "Удар",
+    lofiGirl: "Lofi Girl",
+    createOrJoin: "Створи кімнату або увійди в існуючу",
+    playing: "Гра триває",
+    turn: "Хід",
+    aimLocked: "Приціл зафіксовано",
+    open: "Вільно",
+    noneYet: "Поки немає",
+    createOrJoinTable: "Створи кімнату або увійди",
+    gameOver: "Гру завершено",
+    teamWins: (team) => `Перемогла команда ${team}`,
+    teamFallback: (team) => `Команда ${team}`,
+    pocketedTitle: (team, ball) => `Команда ${team} забила кулю ${ball}`,
+    unableToConnect: "Не вдалося підключитися до сервера",
+    rule: {
+      Playing: "Гра триває",
+      "No ball pocketed": "Кулі не забито",
+      "Turn passes": "Хід переходить",
+      "Team A keeps the table": "Команда A продовжує хід",
+      "Team B keeps the table": "Команда B продовжує хід",
+      "Team A scratched": "Фол: команда A забила биток",
+      "Team B scratched": "Фол: команда B забила биток",
+      "Team A wins": "Перемогла команда A",
+      "Team B wins": "Перемогла команда B"
+    }
+  },
+  en: {
+    flag: "🇬🇧",
+    nativeName: "English",
+    namePlaceholder: "Name",
+    roomPlaceholder: "Room",
+    gameModeLabel: "Game mode",
+    create: "Create",
+    join: "Join",
+    connected: "Connected",
+    disconnected: "Disconnected",
+    room: "Room",
+    pocketedBalls: "Pocketed balls",
+    team: "Team",
+    teamA: "Team A",
+    teamB: "Team B",
+    power: "Power",
+    shoot: "Shoot",
+    lofiGirl: "Lofi Girl",
+    createOrJoin: "Create a room or join one on the same LAN",
+    playing: "Playing",
+    turn: "Turn",
+    aimLocked: "Aim locked",
+    open: "Open",
+    noneYet: "None yet",
+    createOrJoinTable: "Create or join a LAN room",
+    gameOver: "Game over",
+    teamWins: (team) => `Team ${team} wins`,
+    teamFallback: (team) => `Team ${team}`,
+    pocketedTitle: (team, ball) => `Team ${team} pocketed ball ${ball}`,
+    unableToConnect: "Unable to connect to server",
+    rule: {
+      Playing: "Playing",
+      "No ball pocketed": "No ball pocketed",
+      "Turn passes": "Turn passes",
+      "Team A keeps the table": "Team A keeps the table",
+      "Team B keeps the table": "Team B keeps the table",
+      "Team A scratched": "Team A scratched",
+      "Team B scratched": "Team B scratched",
+      "Team A wins": "Team A wins",
+      "Team B wins": "Team B wins"
+    }
+  }
+};
+
 interface AppState {
   socket?: WebSocket;
   connected: boolean;
@@ -56,9 +218,8 @@ interface AppState {
   power: number;
   dragging: boolean;
   gameMode: GameMode;
-  musicEnabled: boolean;
-  musicMode: "synth" | "radio";
-  musicVolume: number;
+  language: Language;
+  languageMenuOpen: boolean;
   error: string;
 }
 
@@ -73,9 +234,8 @@ const state: AppState = {
   power: 0.45,
   dragging: false,
   gameMode: "1v1",
-  musicEnabled: localStorage.getItem(MUSIC_ENABLED_KEY) === "true",
-  musicMode: localStorage.getItem(MUSIC_MODE_KEY) === "radio" ? "radio" : "synth",
-  musicVolume: Number(localStorage.getItem(MUSIC_VOLUME_KEY) ?? "0.28"),
+  language: getInitialLanguage(),
+  languageMenuOpen: false,
   error: ""
 };
 
@@ -86,49 +246,52 @@ app.innerHTML = `
         <h1>LAN 8-Ball Pool</h1>
         <p id="status">Disconnected</p>
       </div>
-      <div class="connection">
-        <input id="nameInput" maxlength="24" placeholder="Name" />
-        <input id="roomInput" maxlength="5" placeholder="Room" />
-        <select id="modeInput" aria-label="Game mode">
-          <option value="1v1">1 vs 1</option>
-          <option value="2v2">2 vs 2</option>
-        </select>
-        <button id="createBtn">Create</button>
-        <button id="joinBtn">Join</button>
+      <div class="topActions">
+        <div class="connection">
+          <input id="nameInput" maxlength="24" />
+          <input id="roomInput" maxlength="5" />
+          <select id="modeInput">
+            <option value="1v1">1 vs 1</option>
+            <option value="2v2">2 vs 2</option>
+          </select>
+          <button id="createBtn"></button>
+          <button id="joinBtn"></button>
+        </div>
+        <div class="languagePicker">
+          <button id="languageBtn" class="languageButton" type="button" aria-haspopup="true" aria-expanded="false"></button>
+          <div id="languageMenu" class="languageMenu" hidden>
+            <button type="button" data-language="ru">🇷🇺 Русский</button>
+            <button type="button" data-language="uk">🇺🇦 Українська</button>
+            <button type="button" data-language="en">🇬🇧 English</button>
+          </div>
+        </div>
       </div>
     </section>
 
     <section class="layout">
       <aside class="panel">
         <div class="roomLine">
-          <span>Room</span>
+          <span id="roomLabel">Room</span>
           <strong id="roomCode">-</strong>
         </div>
         <div class="pocketedPanel">
-          <div class="panelTitle">Pocketed balls</div>
+          <div id="pocketedTitle" class="panelTitle">Pocketed balls</div>
           <div class="teamPocketed">
-            <div class="teamPocketedHeader">Team A</div>
+            <div id="teamAHeader" class="teamPocketedHeader">Team A</div>
             <div id="pocketedA" class="pocketedBalls"></div>
-            <div class="teamPocketedHeader">Team B</div>
+            <div id="teamBHeader" class="teamPocketedHeader">Team B</div>
             <div id="pocketedB" class="pocketedBalls"></div>
           </div>
         </div>
         <div id="seats" class="seats"></div>
         <div class="meter">
-          <label for="powerInput">Power</label>
+          <label id="powerLabel" for="powerInput">Power</label>
           <input id="powerInput" type="range" min="0" max="1" step="0.01" />
           <span id="powerText">45%</span>
         </div>
-        <button id="shootBtn" class="shoot" disabled>Shoot</button>
-        <div class="musicPanel">
-          <select id="musicMode" aria-label="Music mode">
-            <option value="synth">Synth lofi</option>
-            <option value="radio">Lofi Girl</option>
-          </select>
-          <button id="musicBtn" type="button">Music off</button>
-          <input id="musicVolume" type="range" min="0" max="1" step="0.01" aria-label="Music volume" />
-        </div>
-        <div id="radioPanel" class="radioPanel" hidden>
+        <button id="shootBtn" class="shoot" disabled></button>
+        <div class="radioPanel">
+          <div id="radioTitle" class="panelTitle">Lofi Girl</div>
           <iframe
             title="Lofi Girl radio"
             src="https://www.youtube.com/embed/jfKfPfyJRdk?controls=1&rel=0"
@@ -144,7 +307,7 @@ app.innerHTML = `
         <canvas id="table"></canvas>
         <div id="winnerOverlay" class="winnerOverlay" hidden>
           <div class="winnerCard">
-            <span>Game over</span>
+            <span id="winnerKicker">Game over</span>
             <strong id="winnerTitle">Team wins</strong>
             <p id="winnerNames"></p>
           </div>
@@ -162,13 +325,10 @@ const modeInput = document.querySelector<HTMLSelectElement>("#modeInput")!;
 const powerInput = document.querySelector<HTMLInputElement>("#powerInput")!;
 const powerText = document.querySelector<HTMLSpanElement>("#powerText")!;
 const shootBtn = document.querySelector<HTMLButtonElement>("#shootBtn")!;
-const musicBtn = document.querySelector<HTMLButtonElement>("#musicBtn")!;
-const musicMode = document.querySelector<HTMLSelectElement>("#musicMode")!;
-const musicVolume = document.querySelector<HTMLInputElement>("#musicVolume")!;
+const languageBtn = document.querySelector<HTMLButtonElement>("#languageBtn")!;
+const languageMenu = document.querySelector<HTMLDivElement>("#languageMenu")!;
 
 let audioContext: AudioContext | undefined;
-let musicGain: GainNode | undefined;
-let musicTimer: number | undefined;
 let renderedPixelRatio = 1;
 let tableRenderPending = false;
 let localSimulation: StepSimulationState | undefined;
@@ -178,14 +338,11 @@ let lastSoundAt = 0;
 
 nameInput.value = localStorage.getItem(NAME_KEY) ?? "";
 powerInput.value = String(state.power);
-musicMode.value = state.musicMode;
-musicVolume.value = String(clamp(state.musicVolume, 0, 1));
 
 document.querySelector<HTMLButtonElement>("#createBtn")!.addEventListener("click", () => {
   localStorage.setItem(NAME_KEY, nameInput.value.trim());
   state.gameMode = modeInput.value === "2v2" ? "2v2" : "1v1";
   ensureAudio();
-  if (state.musicEnabled) startMusic();
   ensureSocket().then(() =>
     send({ type: "create_room", name: nameInput.value, gameMode: state.gameMode, clientId: state.playerId })
   );
@@ -194,7 +351,6 @@ document.querySelector<HTMLButtonElement>("#createBtn")!.addEventListener("click
 document.querySelector<HTMLButtonElement>("#joinBtn")!.addEventListener("click", () => {
   localStorage.setItem(NAME_KEY, nameInput.value.trim());
   ensureAudio();
-  if (state.musicEnabled) startMusic();
   ensureSocket().then(() =>
     send({ type: "join_room", roomCode: roomInput.value.toUpperCase(), name: nameInput.value, clientId: state.playerId })
   );
@@ -214,32 +370,30 @@ powerInput.addEventListener("input", () => {
 shootBtn.addEventListener("click", () => {
   if (!state.room || !state.aimLocked || state.power <= 0) return;
   ensureAudio();
-  if (state.musicEnabled) startMusic();
   send({ type: "shoot", roomCode: state.room.code, shot: { angle: state.aimAngle, power: state.power } });
 });
 
-musicBtn.addEventListener("click", () => {
-  ensureAudio();
-  state.musicEnabled = !state.musicEnabled;
-  localStorage.setItem(MUSIC_ENABLED_KEY, String(state.musicEnabled));
-  if (state.musicEnabled) startMusic();
-  else stopMusic();
+languageBtn.addEventListener("click", () => {
+  state.languageMenuOpen = !state.languageMenuOpen;
   renderChrome();
 });
 
-musicMode.addEventListener("change", () => {
-  state.musicMode = musicMode.value === "radio" ? "radio" : "synth";
-  localStorage.setItem(MUSIC_MODE_KEY, state.musicMode);
-  stopMusic();
-  if (state.musicEnabled) startMusic();
-  renderChrome();
+languageMenu.addEventListener("click", (event) => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-language]");
+  const language = button?.dataset.language as Language | undefined;
+  if (!language || !(language in LOCALES)) return;
+  state.language = language;
+  state.languageMenuOpen = false;
+  localStorage.setItem(LANGUAGE_KEY, language);
+  render();
 });
 
-musicVolume.addEventListener("input", () => {
-  state.musicVolume = Number(musicVolume.value);
-  localStorage.setItem(MUSIC_VOLUME_KEY, String(state.musicVolume));
-  if (musicGain && audioContext) {
-    musicGain.gain.setTargetAtTime(state.musicVolume * 0.16, audioContext.currentTime, 0.05);
+document.addEventListener("click", (event) => {
+  if (!state.languageMenuOpen) return;
+  const target = event.target as Node;
+  if (!languageBtn.contains(target) && !languageMenu.contains(target)) {
+    state.languageMenuOpen = false;
+    renderChrome();
   }
 });
 
@@ -261,7 +415,6 @@ canvas.addEventListener("pointerdown", (event) => {
   const cue = room.gameState.balls.find((ball) => ball.id === 0 && !ball.pocketed);
   if (!cue) return;
   ensureAudio();
-  if (state.musicEnabled) startMusic();
   const point = eventToTable(event);
   state.aimAngle = Math.atan2(point.y - cue.position.y, point.x - cue.position.x);
   state.aimLocked = false;
@@ -303,7 +456,7 @@ async function ensureSocket(): Promise<void> {
       resolve();
     });
     socket.addEventListener("error", () => {
-      state.error = "Unable to connect to server";
+      state.error = "unableToConnect";
       render();
       reject(new Error("WebSocket connection failed"));
     });
@@ -392,6 +545,7 @@ function render(): void {
 }
 
 function renderChrome(): void {
+  const t = locale();
   const status = document.querySelector<HTMLParagraphElement>("#status")!;
   const roomCode = document.querySelector<HTMLElement>("#roomCode")!;
   const message = document.querySelector<HTMLParagraphElement>("#message")!;
@@ -399,20 +553,36 @@ function renderChrome(): void {
   const active = getCurrentPlayer();
   const room = state.room;
 
-  status.textContent = state.connected ? "Connected" : "Disconnected";
+  status.textContent = state.connected ? t.connected : t.disconnected;
+  nameInput.placeholder = t.namePlaceholder;
+  roomInput.placeholder = t.roomPlaceholder;
+  modeInput.ariaLabel = t.gameModeLabel;
+  document.querySelector<HTMLButtonElement>("#createBtn")!.textContent = t.create;
+  document.querySelector<HTMLButtonElement>("#joinBtn")!.textContent = t.join;
+  document.querySelector<HTMLElement>("#roomLabel")!.textContent = t.room;
+  document.querySelector<HTMLElement>("#pocketedTitle")!.textContent = t.pocketedBalls;
+  document.querySelector<HTMLElement>("#teamAHeader")!.textContent = t.teamA;
+  document.querySelector<HTMLElement>("#teamBHeader")!.textContent = t.teamB;
+  document.querySelector<HTMLLabelElement>("#powerLabel")!.textContent = t.power;
+  document.querySelector<HTMLElement>("#radioTitle")!.textContent = t.lofiGirl;
   roomCode.textContent = room?.code ?? "-";
   powerText.textContent = `${Math.round(state.power * 100)}%`;
   message.textContent = room
-    ? `${room.gameState.ruleState.message || "Playing"}${active ? ` · Turn: ${active.name}` : ""}${
-        state.aimLocked ? " · Aim locked" : ""
+    ? `${translateRuleMessage(room.gameState.ruleState.message)}${active ? ` · ${t.turn}: ${active.name}` : ""}${
+        state.aimLocked ? ` · ${t.aimLocked}` : ""
       }`
-    : "Create a room or join one on the same LAN";
-  error.textContent = state.error;
+    : t.createOrJoin;
+  error.textContent = translateClientError(state.error);
   shootBtn.disabled = !room || !canShoot(room.gameState, getMe()?.seat) || !state.aimLocked || state.power <= 0;
+  shootBtn.textContent = t.shoot;
   modeInput.disabled = Boolean(room);
-  musicBtn.textContent = state.musicEnabled ? "Music on" : "Music off";
-  musicMode.value = state.musicMode;
-  document.querySelector<HTMLDivElement>("#radioPanel")!.hidden = !(state.musicEnabled && state.musicMode === "radio");
+  languageBtn.textContent = t.flag;
+  languageBtn.ariaLabel = `${t.nativeName}`;
+  languageBtn.setAttribute("aria-expanded", String(state.languageMenuOpen));
+  languageMenu.hidden = !state.languageMenuOpen;
+  for (const option of languageMenu.querySelectorAll<HTMLButtonElement>("[data-language]")) {
+    option.classList.toggle("active", option.dataset.language === state.language);
+  }
   renderWinner();
 }
 
@@ -427,7 +597,9 @@ function renderSeats(): void {
     const button = document.createElement("button");
     button.className = `seat ${room?.gameState.currentTurnSeat === seat ? "active" : ""}`;
     button.disabled = !room || Boolean(player && player.id !== state.playerId);
-    button.innerHTML = `<span>${seat} · Team ${teamForSeat(seat)}</span><strong>${player ? player.name : "Open"}</strong>`;
+    button.innerHTML = `<span>${seat} · ${locale().team} ${teamForSeat(seat)}</span><strong>${
+      player ? player.name : locale().open
+    }</strong>`;
     button.addEventListener("click", () => {
       if (room) send({ type: "choose_seat", roomCode: room.code, seat });
     });
@@ -450,7 +622,7 @@ function renderTeamPocketed(team: Team, pocketedBalls: HTMLDivElement): void {
   if (balls.length === 0) {
     const empty = document.createElement("span");
     empty.className = "pocketedEmpty";
-    empty.textContent = "None yet";
+    empty.textContent = locale().noneYet;
     pocketedBalls.append(empty);
     return;
   }
@@ -459,7 +631,7 @@ function renderTeamPocketed(team: Team, pocketedBalls: HTMLDivElement): void {
     const chip = document.createElement("span");
     chip.className = `pocketedBall ${ball.kind === "stripe" ? "stripe" : ""} ${ball.id === 8 ? "dark" : ""}`;
     chip.style.setProperty("--ball-color", BALL_PALETTE[ball.id] ?? "#ddd");
-    chip.title = `Team ${team} pocketed ball ${ball.id}`;
+    chip.title = locale().pocketedTitle(team, ball.id);
     chip.textContent = String(ball.id);
     pocketedBalls.append(chip);
   }
@@ -505,7 +677,7 @@ function drawEmptyTable(): void {
   ctx.fillStyle = "#f3efe7";
   ctx.font = "24px system-ui";
   ctx.textAlign = "center";
-  ctx.fillText("Create or join a LAN room", TABLE_WIDTH / 2, TABLE_HEIGHT / 2);
+  ctx.fillText(locale().createOrJoinTable, TABLE_WIDTH / 2, TABLE_HEIGHT / 2);
 }
 
 function drawPreview(room: RoomState): void {
@@ -653,99 +825,28 @@ function playFilteredClick(
   oscillator.stop(now + duration);
 }
 
-function startMusic(): void {
-  if (state.musicMode === "radio") {
-    renderChrome();
-    return;
-  }
-  if (!audioContext || musicTimer !== undefined) return;
-  musicGain ??= audioContext.createGain();
-  musicGain.gain.setValueAtTime(state.musicVolume * 0.16, audioContext.currentTime);
-  musicGain.connect(audioContext.destination);
-  playLofiBar();
-  musicTimer = window.setInterval(playLofiBar, 2400);
-}
-
-function stopMusic(): void {
-  if (musicTimer !== undefined) {
-    window.clearInterval(musicTimer);
-    musicTimer = undefined;
-  }
-}
-
-function playLofiBar(): void {
-  if (!audioContext || !musicGain) return;
-  const now = audioContext.currentTime;
-  const chords = [
-    [196, 246.94, 293.66, 369.99],
-    [174.61, 220, 261.63, 329.63],
-    [164.81, 196, 246.94, 311.13],
-    [185, 233.08, 277.18, 349.23]
-  ];
-  const chord = chords[Math.floor((now / 2.4) % chords.length)];
-  chord.forEach((frequency, index) => playMusicTone(frequency, now + index * 0.025, 1.95, 0.027, "sine"));
-  playMusicTone(chord[0] / 2, now, 1.3, 0.042, "triangle");
-  playMusicTone(chord[2] * 2, now + 1.18, 0.42, 0.014, "sine");
-  playMusicTone(chord[1] * 2, now + 1.62, 0.36, 0.011, "sine");
-  playNoise(now + 0.08, 0.7, 0.012);
-}
-
-function playMusicTone(
-  frequency: number,
-  start: number,
-  duration: number,
-  gainValue: number,
-  type: OscillatorType
-): void {
-  if (!audioContext || !musicGain) return;
-  const oscillator = audioContext.createOscillator();
-  const gain = audioContext.createGain();
-  oscillator.type = type;
-  oscillator.frequency.setValueAtTime(frequency, start);
-  gain.gain.setValueAtTime(0.001, start);
-  gain.gain.exponentialRampToValueAtTime(gainValue, start + 0.08);
-  gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
-  oscillator.connect(gain);
-  gain.connect(musicGain);
-  oscillator.start(start);
-  oscillator.stop(start + duration);
-}
-
-function playNoise(start: number, duration: number, gainValue: number): void {
-  if (!audioContext || !musicGain) return;
-  const buffer = audioContext.createBuffer(1, Math.floor(audioContext.sampleRate * duration), audioContext.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < data.length; i += 1) data[i] = (Math.random() * 2 - 1) * 0.35;
-  const source = audioContext.createBufferSource();
-  const gain = audioContext.createGain();
-  source.buffer = buffer;
-  gain.gain.setValueAtTime(gainValue, start);
-  gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
-  source.connect(gain);
-  gain.connect(musicGain);
-  source.start(start);
-}
-
 function renderWinner(): void {
   const overlay = document.querySelector<HTMLDivElement>("#winnerOverlay")!;
+  const kicker = document.querySelector<HTMLElement>("#winnerKicker")!;
   const title = document.querySelector<HTMLElement>("#winnerTitle")!;
   const names = document.querySelector<HTMLParagraphElement>("#winnerNames")!;
   const winner = state.room?.gameState.ruleState.winner;
   overlay.hidden = !winner;
   if (!winner || !state.room) return;
-  title.textContent = `Team ${winner} wins`;
+  kicker.textContent = locale().gameOver;
+  title.textContent = locale().teamWins(winner);
   const winnerNames = state.room.players
     .filter((player) => player.team === winner)
     .map((player) => player.name)
     .join(", ");
-  names.textContent = winnerNames || `Team ${winner}`;
+  names.textContent = winnerNames || locale().teamFallback(winner);
 }
 
 function resizeCanvasForDisplay(): void {
   const rect = canvas.getBoundingClientRect();
   const pixelRatio = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
   const displayWidth = Math.max(1, Math.round(rect.width * pixelRatio));
-  const displayHeight = Math.max(1, Math.round((rect.width * TABLE_HEIGHT / TABLE_WIDTH) * pixelRatio));
+  const displayHeight = Math.max(1, Math.round(((rect.width * TABLE_HEIGHT) / TABLE_WIDTH) * pixelRatio));
   if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
     canvas.width = displayWidth;
     canvas.height = displayHeight;
@@ -805,6 +906,27 @@ function getOrCreateClientId(): string {
   return next;
 }
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
+function getInitialLanguage(): Language {
+  const saved = localStorage.getItem(LANGUAGE_KEY);
+  if (saved === "ru" || saved === "uk" || saved === "en") return saved;
+  const browserLanguage = navigator.language.toLowerCase();
+  if (browserLanguage.startsWith("ru")) return "ru";
+  if (browserLanguage.startsWith("uk")) return "uk";
+  return "en";
+}
+
+function locale(): Locale {
+  return LOCALES[state.language] ?? LOCALES.en;
+}
+
+function translateRuleMessage(message?: string): string {
+  const t = locale();
+  if (!message) return t.playing;
+  return t.rule[message] ?? message;
+}
+
+function translateClientError(message: string): string {
+  if (!message) return "";
+  if (message === "unableToConnect") return locale().unableToConnect;
+  return message;
 }

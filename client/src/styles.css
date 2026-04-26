@@ -66,6 +66,12 @@ select {
   gap: 16px;
 }
 
+.topActions {
+  display: flex;
+  align-items: start;
+  gap: 10px;
+}
+
 h1 {
   margin: 0;
   font-size: 26px;
@@ -84,6 +90,49 @@ p {
   display: grid;
   grid-template-columns: minmax(120px, 180px) 82px 88px 86px 72px;
   gap: 8px;
+}
+
+.languagePicker {
+  position: relative;
+}
+
+.languageButton {
+  width: 42px;
+  min-height: 38px;
+  padding: 0;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.languageMenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 5;
+  width: 168px;
+  padding: 6px;
+  border: 1px solid #4d625b;
+  border-radius: 8px;
+  background: #151d1a;
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.32);
+}
+
+.languageMenu[hidden] {
+  display: none;
+}
+
+.languageMenu button {
+  width: 100%;
+  min-height: 34px;
+  padding: 0 8px;
+  border-color: transparent;
+  background: transparent;
+  text-align: left;
+}
+
+.languageMenu button:hover,
+.languageMenu button.active {
+  background: #26332f;
 }
 
 .layout {
@@ -233,30 +282,14 @@ p {
   background: #b44b40;
 }
 
-.musicPanel {
-  display: grid;
-  grid-template-columns: 1fr 94px;
-  gap: 8px;
-  align-items: center;
-}
-
-.musicPanel select {
-  grid-column: 1 / -1;
-}
-
-.musicPanel button {
-  min-height: 36px;
-}
-
-.musicPanel input {
-  padding: 0;
-}
-
 .radioPanel {
+  display: grid;
+  gap: 8px;
   border: 1px solid #33413d;
   border-radius: 6px;
   overflow: hidden;
   background: #101614;
+  padding: 8px;
 }
 
 .radioPanel iframe {
@@ -345,6 +378,10 @@ canvas {
     display: grid;
   }
 
+  .topActions {
+    align-items: start;
+  }
+
   .connection {
     grid-template-columns: 1fr 78px;
   }
@@ -355,5 +392,13 @@ canvas {
 
   .connection select {
     grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 520px) {
+  .topActions {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: start;
   }
 }
