@@ -165,7 +165,7 @@ const LOCALES: Record<Language, Locale> = {
     }
   },
   en: {
-    flag: "🇬🇧",
+    flag: "🇺🇸",
     nativeName: "English",
     namePlaceholder: "Name",
     roomPlaceholder: "Room",
@@ -260,9 +260,9 @@ app.innerHTML = `
         <div class="languagePicker">
           <button id="languageBtn" class="languageButton" type="button" aria-haspopup="true" aria-expanded="false"></button>
           <div id="languageMenu" class="languageMenu" hidden>
-            <button type="button" data-language="ru">🇷🇺 Русский</button>
-            <button type="button" data-language="uk">🇺🇦 Українська</button>
-            <button type="button" data-language="en">🇬🇧 English</button>
+            <button type="button" data-language="ru">🇷🇺</button>
+            <button type="button" data-language="uk">🇺🇦</button>
+            <button type="button" data-language="en">🇺🇸</button>
           </div>
         </div>
       </div>
