@@ -5,6 +5,7 @@ export type GamePhase = "lobby" | "playing" | "finished";
 export type GameMode = "1v1" | "2v2";
 export type MotionState = "sliding" | "rolling" | "settled";
 export type SoundEventType = "cue" | "collision" | "cushion" | "pocket";
+export type MatchmakingStatus = "searching" | "cancelled";
 
 export type Seat = "A1" | "B1" | "A2" | "B2";
 
@@ -97,6 +98,8 @@ export type ClientMessage =
   | { type: "choose_seat"; roomCode: string; seat: Seat }
   | { type: "set_name"; roomCode: string; name: string }
   | { type: "place_cue"; roomCode: string; position: Vec2 }
+  | { type: "find_match"; name: string; clientId?: string }
+  | { type: "cancel_match" }
   | { type: "shoot"; roomCode: string; shot: Shot }
   | { type: "request_rematch"; roomCode: string }
   | { type: "request_state"; roomCode: string };
@@ -106,6 +109,8 @@ export type ServerMessage =
   | { type: "joined_room"; room: RoomState; playerId: string }
   | { type: "state_snapshot"; room: RoomState; playerId?: string }
   | { type: "player_update"; room: RoomState }
+  | { type: "matchmaking_update"; status: MatchmakingStatus }
+  | { type: "match_found"; room: RoomState; playerId: string }
   | { type: "shot_started"; room: RoomState; shot: Shot; startBalls: Ball[]; activeSeat: Seat }
   | { type: "shot_frame"; roomCode: string; frame: ShotFrame }
   | { type: "shot_resolved"; room: RoomState }

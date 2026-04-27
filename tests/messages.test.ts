@@ -9,6 +9,8 @@ describe("message contract", () => {
       { type: "choose_seat", roomCode: "ABCDE", seat: "A1" },
       { type: "set_name", roomCode: "ABCDE", name: "Linus" },
       { type: "place_cue", roomCode: "ABCDE", position: { x: 10, y: 10 } },
+      { type: "find_match", name: "Ada" },
+      { type: "cancel_match" },
       { type: "shoot", roomCode: "ABCDE", shot: { angle: 0, power: 0.5, spin: { x: 0.2, y: -0.4 } } },
       { type: "request_rematch", roomCode: "ABCDE" },
       { type: "request_state", roomCode: "ABCDE" }
@@ -21,6 +23,8 @@ describe("message contract", () => {
       "choose_seat",
       "set_name",
       "place_cue",
+      "find_match",
+      "cancel_match",
       "shoot",
       "request_rematch",
       "request_state"

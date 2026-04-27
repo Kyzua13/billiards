@@ -98,6 +98,13 @@ p {
   gap: 8px;
 }
 
+#findMatchBtn,
+#cancelMatchBtn,
+#localNameInput,
+#localBtn {
+  grid-column: span 2;
+}
+
 .languagePicker {
   position: relative;
 }
@@ -317,6 +324,33 @@ p {
   font-size: 13px;
 }
 
+.ratingPanel {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #33413d;
+  border-radius: 6px;
+  background: #101614;
+  padding: 8px;
+}
+
+.ratingBody {
+  display: grid;
+  gap: 5px;
+  color: #b7c1bd;
+  font-size: 13px;
+}
+
+.ratingPlayer,
+.ratingRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ratingRow strong {
+  color: #f8d36c;
+}
+
 .seats {
   display: grid;
   gap: 8px;
@@ -495,7 +529,7 @@ canvas {
   inset: 10px;
   display: grid;
   place-items: center;
-  pointer-events: none;
+  pointer-events: auto;
   background: rgba(8, 12, 10, 0.18);
 }
 
@@ -511,6 +545,7 @@ canvas {
   padding: 24px;
   text-align: center;
   box-shadow: 0 18px 55px rgba(0, 0, 0, 0.35);
+  pointer-events: auto;
 }
 
 .winnerCard span {
@@ -543,6 +578,35 @@ canvas {
     align-items: start;
   }
 
+  .shell {
+    padding: 10px;
+  }
+
+  .layout {
+    display: flex;
+    flex-direction: column-reverse;
+  }
+
+  .panel {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .roomLine,
+  .pocketedPanel,
+  .seats,
+  .ratingPanel,
+  .meter,
+  .spinPanel,
+  .shoot,
+  .musicPanel,
+  .message,
+  .error {
+    min-width: 0;
+  }
+
   .connection {
     grid-template-columns: 1fr 78px;
   }
@@ -553,6 +617,23 @@ canvas {
 
   .connection select {
     grid-column: 1 / -1;
+  }
+
+  #findMatchBtn,
+  #cancelMatchBtn,
+  #localNameInput,
+  #localBtn {
+    grid-column: 1 / -1;
+  }
+
+  button,
+  input,
+  select {
+    min-height: 44px;
+  }
+
+  .shoot {
+    min-height: 52px;
   }
 }
 
@@ -565,5 +646,32 @@ canvas {
 
   .cornerControls {
     justify-content: end;
+  }
+
+  .panel {
+    grid-template-columns: 1fr;
+  }
+
+  .tableWrap {
+    padding: 6px;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+  .topbar {
+    align-items: start;
+  }
+
+  .layout {
+    grid-template-columns: minmax(210px, 260px) minmax(0, 1fr);
+  }
+
+  .panel {
+    max-height: calc(100vh - 92px);
+    overflow: auto;
+  }
+
+  canvas {
+    max-height: calc(100vh - 110px);
   }
 }

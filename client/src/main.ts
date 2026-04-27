@@ -3,7 +3,10 @@ import {
   buildPreview,
   canShoot,
   cloneBalls,
+  applyShot,
+  createInitialGame,
   createShotSimulation,
+  isInPocket,
   isSimulationSettled,
   stepSimulation,
   teamForSeat,
@@ -18,6 +21,7 @@ import {
   type Team,
   type Vec2
 } from "../../shared/src/index.ts";
+import { loadLeaderboard, notifyYandexReady, submitRatingScore, type LeaderboardState } from "./yandex.ts";
 import "./styles.css";
 
 const NAME_KEY = "lan-pool-name";
@@ -25,6 +29,7 @@ const CLIENT_ID_KEY = "lan-pool-client-id";
 const LANGUAGE_KEY = "lan-pool-language";
 const COMPACT_KEY = "lan-pool-compact";
 const MUSIC_VOLUME_KEY = "lan-pool-music-volume";
+const LOCAL_PLAYER_B_KEY = "lan-pool-local-player-b";
 const LOFI_STREAM_URL = "https://ice5.somafm.com/beatblender-128-mp3";
 const TABLE_WIDTH = 960;
 const TABLE_HEIGHT = 520;
@@ -50,6 +55,7 @@ const BALL_PALETTE: Record<number, string> = {
 };
 
 type Language = "ru" | "uk" | "en";
+type ClientMode = "online_room" | "online_matchmaking" | "local_1v1";
 
 interface Locale {
   nativeName: string;
@@ -58,6 +64,10 @@ interface Locale {
   gameModeLabel: string;
   create: string;
   join: string;
+  findMatch: string;
+  cancelMatch: string;
+  localGame: string;
+  localPlayerB: string;
   connected: string;
   disconnected: string;
   room: string;
@@ -82,6 +92,10 @@ interface Locale {
   rematch: string;
   compact: string;
   reconnecting: string;
+  searchingMatch: string;
+  rating: string;
+  ratingUnavailable: string;
+  yourRating: string;
   music: string;
   groupOpen: string;
   groupSolids: string;
@@ -105,6 +119,10 @@ const LOCALES: Record<Language, Locale> = {
     gameModeLabel: "Режим игры",
     create: "Создать",
     join: "Войти",
+    findMatch: "Случайный 1 на 1",
+    cancelMatch: "Отмена",
+    localGame: "Локально 1 на 1",
+    localPlayerB: "Игрок B",
     connected: "Подключено",
     disconnected: "Отключено",
     room: "Комната",
@@ -129,6 +147,10 @@ const LOCALES: Record<Language, Locale> = {
     rematch: "Новая партия",
     compact: "Компактно",
     reconnecting: "Переподключение...",
+    searchingMatch: "Ищем случайного соперника...",
+    rating: "Рейтинг",
+    ratingUnavailable: "Рейтинг доступен в Яндекс Играх",
+    yourRating: "Твой рейтинг",
     music: "Музыка",
     groupOpen: "Открытый стол",
     groupSolids: "Шары solids",
@@ -164,6 +186,10 @@ const LOCALES: Record<Language, Locale> = {
     gameModeLabel: "Режим гри",
     create: "Створити",
     join: "Увійти",
+    findMatch: "Випадковий 1 на 1",
+    cancelMatch: "Скасувати",
+    localGame: "Локально 1 на 1",
+    localPlayerB: "Гравець B",
     connected: "Підключено",
     disconnected: "Відключено",
     room: "Кімната",
@@ -188,6 +214,10 @@ const LOCALES: Record<Language, Locale> = {
     rematch: "Нова партія",
     compact: "Компактно",
     reconnecting: "Перепідключення...",
+    searchingMatch: "Шукаємо випадкового суперника...",
+    rating: "Рейтинг",
+    ratingUnavailable: "Рейтинг доступний у Яндекс Іграх",
+    yourRating: "Твій рейтинг",
     music: "Музика",
     groupOpen: "Відкритий стіл",
     groupSolids: "Кулі solids",
@@ -223,6 +253,10 @@ const LOCALES: Record<Language, Locale> = {
     gameModeLabel: "Game mode",
     create: "Create",
     join: "Join",
+    findMatch: "Random 1v1",
+    cancelMatch: "Cancel",
+    localGame: "Local 1v1",
+    localPlayerB: "Player B",
     connected: "Connected",
     disconnected: "Disconnected",
     room: "Room",
@@ -247,6 +281,10 @@ const LOCALES: Record<Language, Locale> = {
     rematch: "Rematch",
     compact: "Compact",
     reconnecting: "Reconnecting...",
+    searchingMatch: "Searching for a random opponent...",
+    rating: "Rating",
+    ratingUnavailable: "Rating is available in Yandex Games",
+    yourRating: "Your rating",
     music: "Music",
     groupOpen: "Open table",
     groupSolids: "Solids",
@@ -282,6 +320,9 @@ interface AppState {
   connected: boolean;
   playerId: string;
   room?: RoomState;
+  clientMode: ClientMode;
+  rating: LeaderboardState;
+  ratingSubmittedFor?: string;
   aimAngle: number;
   aimLocked: boolean;
   power: number;
@@ -303,6 +344,8 @@ if (!app) throw new Error("App root not found");
 const state: AppState = {
   connected: false,
   playerId: getOrCreateClientId(),
+  clientMode: "online_room",
+  rating: { available: false, entries: [] },
   aimAngle: 0,
   aimLocked: false,
   power: 0.45,
@@ -335,6 +378,10 @@ app.innerHTML = `
           </select>
           <button id="createBtn"></button>
           <button id="joinBtn"></button>
+          <button id="findMatchBtn" type="button"></button>
+          <button id="cancelMatchBtn" type="button" hidden></button>
+          <input id="localNameInput" maxlength="24" />
+          <button id="localBtn" type="button"></button>
         </div>
         <div class="cornerControls">
           <button id="compactBtn" class="compactButton" type="button" title="Compact mode">◫</button>
@@ -368,6 +415,10 @@ app.innerHTML = `
           </div>
         </div>
         <div id="seats" class="seats"></div>
+        <div class="ratingPanel">
+          <div id="ratingTitle" class="panelTitle">Rating</div>
+          <div id="ratingBody" class="ratingBody"></div>
+        </div>
         <div class="meter">
           <label id="powerLabel" for="powerInput">Power</label>
           <input id="powerInput" type="range" min="0" max="1" step="0.01" />
@@ -409,6 +460,7 @@ const canvas = document.querySelector<HTMLCanvasElement>("#table")!;
 const ctx = canvas.getContext("2d")!;
 const nameInput = document.querySelector<HTMLInputElement>("#nameInput")!;
 const roomInput = document.querySelector<HTMLInputElement>("#roomInput")!;
+const localNameInput = document.querySelector<HTMLInputElement>("#localNameInput")!;
 const modeInput = document.querySelector<HTMLSelectElement>("#modeInput")!;
 const powerInput = document.querySelector<HTMLInputElement>("#powerInput")!;
 const powerText = document.querySelector<HTMLSpanElement>("#powerText")!;
@@ -425,6 +477,8 @@ const rematchBtn = document.querySelector<HTMLButtonElement>("#rematchBtn")!;
 const teamAGroup = document.querySelector<HTMLElement>("#teamAGroup")!;
 const teamBGroup = document.querySelector<HTMLElement>("#teamBGroup")!;
 const musicTitle = document.querySelector<HTMLElement>("#musicTitle")!;
+const ratingTitle = document.querySelector<HTMLElement>("#ratingTitle")!;
+const ratingBody = document.querySelector<HTMLElement>("#ratingBody")!;
 
 let audioContext: AudioContext | undefined;
 let musicPlayer: HTMLAudioElement | undefined;
@@ -437,11 +491,13 @@ let lastSoundAt = 0;
 let placingCuePoint: Vec2 | undefined;
 
 nameInput.value = localStorage.getItem(NAME_KEY) ?? "";
+localNameInput.value = localStorage.getItem(LOCAL_PLAYER_B_KEY) ?? "";
 powerInput.value = String(state.power);
 musicVolume.value = String(state.musicVolume);
 
 document.querySelector<HTMLButtonElement>("#createBtn")!.addEventListener("click", () => {
   localStorage.setItem(NAME_KEY, nameInput.value.trim());
+  state.clientMode = "online_room";
   state.gameMode = modeInput.value === "2v2" ? "2v2" : "1v1";
   ensureAudio();
   startMusic();
@@ -452,11 +508,33 @@ document.querySelector<HTMLButtonElement>("#createBtn")!.addEventListener("click
 
 document.querySelector<HTMLButtonElement>("#joinBtn")!.addEventListener("click", () => {
   localStorage.setItem(NAME_KEY, nameInput.value.trim());
+  state.clientMode = "online_room";
   ensureAudio();
   startMusic();
   ensureSocket().then(() =>
     send({ type: "join_room", roomCode: roomInput.value.toUpperCase(), name: nameInput.value, clientId: state.playerId })
   );
+});
+
+document.querySelector<HTMLButtonElement>("#findMatchBtn")!.addEventListener("click", () => {
+  localStorage.setItem(NAME_KEY, nameInput.value.trim());
+  state.clientMode = "online_matchmaking";
+  state.room = undefined;
+  state.error = "";
+  ensureAudio();
+  startMusic();
+  ensureSocket().then(() => send({ type: "find_match", name: nameInput.value, clientId: state.playerId }));
+  render();
+});
+
+document.querySelector<HTMLButtonElement>("#cancelMatchBtn")!.addEventListener("click", () => {
+  send({ type: "cancel_match" });
+  state.clientMode = "online_room";
+  render();
+});
+
+document.querySelector<HTMLButtonElement>("#localBtn")!.addEventListener("click", () => {
+  startLocalGame();
 });
 
 compactBtn.addEventListener("click", () => {
@@ -470,6 +548,10 @@ nameInput.addEventListener("change", () => {
   if (state.room) send({ type: "set_name", roomCode: state.room.code, name: nameInput.value });
 });
 
+localNameInput.addEventListener("change", () => {
+  localStorage.setItem(LOCAL_PLAYER_B_KEY, localNameInput.value.trim());
+});
+
 powerInput.addEventListener("input", () => {
   state.power = Number(powerInput.value);
   renderChrome();
@@ -479,6 +561,10 @@ powerInput.addEventListener("input", () => {
 shootBtn.addEventListener("click", () => {
   if (!state.room || !state.aimLocked || state.power <= 0) return;
   ensureAudio();
+  if (state.clientMode === "local_1v1") {
+    shootLocal({ angle: state.aimAngle, power: state.power, spin: state.spin });
+    return;
+  }
   send({ type: "shoot", roomCode: state.room.code, shot: { angle: state.aimAngle, power: state.power, spin: state.spin } });
 });
 
@@ -542,6 +628,10 @@ document.addEventListener("click", (event) => {
 
 rematchBtn.addEventListener("click", () => {
   if (!state.room) return;
+  if (state.clientMode === "local_1v1") {
+    startLocalGame();
+    return;
+  }
   send({ type: "request_rematch", roomCode: state.room.code });
 });
 
@@ -593,6 +683,13 @@ canvas.addEventListener("pointerup", (event) => {
   const room = state.room;
   const me = getMe();
   if (room && room.gameState.ruleState.cuePlacementSeat === me?.seat && placingCuePoint) {
+    if (state.clientMode === "local_1v1") {
+      placeLocalCue(placingCuePoint);
+      placingCuePoint = undefined;
+      if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+      render();
+      return;
+    }
     send({ type: "place_cue", roomCode: room.code, position: placingCuePoint });
     placingCuePoint = undefined;
     if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
@@ -615,6 +712,7 @@ canvas.addEventListener("pointercancel", () => {
 window.addEventListener("resize", () => renderTable());
 
 render();
+void bootstrapYandex();
 
 async function ensureSocket(): Promise<void> {
   if (state.socket?.readyState === WebSocket.OPEN) return;
@@ -647,6 +745,20 @@ function handleServerMessage(message: ServerMessage): void {
   switch (message.type) {
     case "room_created":
     case "joined_room":
+      state.clientMode = "online_room";
+      applyRoom(message.room, true);
+      state.playerId = message.playerId;
+      localStorage.setItem(CLIENT_ID_KEY, message.playerId);
+      roomInput.value = message.room.code;
+      state.error = "";
+      break;
+    case "matchmaking_update":
+      if (message.status === "searching") state.clientMode = "online_matchmaking";
+      if (message.status === "cancelled") state.clientMode = "online_room";
+      state.error = "";
+      break;
+    case "match_found":
+      state.clientMode = "online_room";
       applyRoom(message.room, true);
       state.playerId = message.playerId;
       localStorage.setItem(CLIENT_ID_KEY, message.playerId);
@@ -694,10 +806,92 @@ function applyRoom(room: RoomState, clearAim: boolean): void {
   if (room.gameState.ruleState.cuePlacementSeat !== getMe()?.seat) {
     placingCuePoint = undefined;
   }
+  void maybeSubmitRating(room);
 }
 
-function startLocalShot(room: RoomState, startBalls: Ball[], shot: Shot): void {
-  pendingResolvedRoom = undefined;
+function startLocalGame(): void {
+  localStorage.setItem(NAME_KEY, nameInput.value.trim());
+  localStorage.setItem(LOCAL_PLAYER_B_KEY, localNameInput.value.trim());
+  stopLocalShotAnimation();
+  const gameState = createInitialGame();
+  gameState.phase = "playing";
+  gameState.ruleState.message = "Local game started";
+  state.clientMode = "local_1v1";
+  state.playerId = "local-a";
+  state.room = {
+    code: "LOCAL",
+    gameMode: "1v1",
+    players: [
+      { id: "local-a", name: cleanDisplayName(nameInput.value, "Player A"), seat: "A1", team: "A", connected: true },
+      { id: "local-b", name: cleanDisplayName(localNameInput.value, "Player B"), seat: "B1", team: "B", connected: true }
+    ],
+    gameState
+  };
+  state.aimLocked = false;
+  state.power = 0.45;
+  powerInput.value = String(state.power);
+  state.ratingSubmittedFor = undefined;
+  render();
+}
+
+async function bootstrapYandex(): Promise<void> {
+  await notifyYandexReady();
+  state.rating = await loadLeaderboard();
+  renderChrome();
+}
+
+async function maybeSubmitRating(room: RoomState): Promise<void> {
+  const winner = room.gameState.ruleState.winner;
+  if (!winner || state.clientMode === "local_1v1") return;
+  const key = `${room.code}:${winner}:${room.gameState.ruleState.message}`;
+  if (state.ratingSubmittedFor === key) return;
+  const myTeam = room.players.find((player) => player.id === state.playerId)?.team;
+  if (myTeam !== winner) return;
+  state.ratingSubmittedFor = key;
+  await submitRatingScore((state.rating.playerScore ?? 0) + 10);
+  state.rating = await loadLeaderboard();
+  renderChrome();
+}
+
+function shootLocal(shot: Shot): void {
+  if (!state.room || !canShoot(state.room.gameState, getMe()?.seat)) return;
+  const activeSeat = state.room.gameState.currentTurnSeat;
+  const startBalls = cloneBalls(state.room.gameState.balls);
+  const resolution = applyShot(state.room.gameState, activeSeat, shot, "1v1");
+  const startRoom: RoomState = {
+    ...state.room,
+    gameState: {
+      ...state.room.gameState,
+      shotInProgress: true
+    }
+  };
+  const resolvedRoom: RoomState = {
+    ...state.room,
+    gameState: resolution.state
+  };
+  startLocalShot(startRoom, startBalls, shot, resolvedRoom);
+}
+
+function placeLocalCue(position: Vec2): void {
+  const room = state.room;
+  if (!room || room.gameState.ruleState.cuePlacementSeat !== getMe()?.seat) return;
+  const cue = room.gameState.balls.find((ball) => ball.id === 0);
+  if (!cue) return;
+  const clamped = clampPointToTable(position, room.gameState.table);
+  if (isInPocket(clamped, room.gameState.table) || overlapsObjectBall(clamped, room.gameState.balls, room.gameState.table.ballRadius)) {
+    return;
+  }
+  cue.position = clamped;
+  cue.velocity = { x: 0, y: 0 };
+  cue.angularVelocity = { x: 0, y: 0, z: 0 };
+  cue.motionState = "settled";
+  cue.pocketed = false;
+  room.gameState.ruleState.cuePlacementSeat = undefined;
+  room.gameState.ruleState.message = "Cue ball placed";
+}
+
+function startLocalShot(room: RoomState, startBalls: Ball[], shot: Shot, resolvedRoom?: RoomState): void {
+  pendingResolvedRoom = resolvedRoom;
   placingCuePoint = undefined;
   stopLocalShotAnimation();
   state.room = {
@@ -732,14 +926,21 @@ function renderChrome(): void {
   const active = getCurrentPlayer();
   const room = state.room;
 
-  status.textContent = state.connected ? t.connected : t.disconnected;
-  reconnectBanner.hidden = state.connected;
-  reconnectBanner.textContent = state.connected ? "" : room ? t.reconnecting : t.disconnected;
+  const offlineLocal = state.clientMode === "local_1v1";
+  status.textContent = state.connected || offlineLocal ? t.connected : t.disconnected;
+  reconnectBanner.hidden = state.connected || offlineLocal;
+  reconnectBanner.textContent = state.connected || offlineLocal ? "" : room ? t.reconnecting : t.disconnected;
   nameInput.placeholder = t.namePlaceholder;
   roomInput.placeholder = t.roomPlaceholder;
+  localNameInput.placeholder = t.localPlayerB;
   modeInput.ariaLabel = t.gameModeLabel;
   document.querySelector<HTMLButtonElement>("#createBtn")!.textContent = t.create;
   document.querySelector<HTMLButtonElement>("#joinBtn")!.textContent = t.join;
+  document.querySelector<HTMLButtonElement>("#findMatchBtn")!.textContent = t.findMatch;
+  document.querySelector<HTMLButtonElement>("#cancelMatchBtn")!.textContent = t.cancelMatch;
+  document.querySelector<HTMLButtonElement>("#cancelMatchBtn")!.hidden = state.clientMode !== "online_matchmaking";
+  document.querySelector<HTMLButtonElement>("#findMatchBtn")!.disabled = state.clientMode === "online_matchmaking";
+  document.querySelector<HTMLButtonElement>("#localBtn")!.textContent = t.localGame;
   document.querySelector<HTMLElement>("#roomLabel")!.textContent = t.room;
   document.querySelector<HTMLElement>("#pocketedTitle")!.textContent = t.pocketedBalls;
   document.querySelector<HTMLElement>("#teamAHeader")!.textContent = t.teamA;
@@ -750,10 +951,14 @@ function renderChrome(): void {
   spinTitle.textContent = t.spin;
   spinReset.ariaLabel = t.resetSpin;
   spinMarker.style.transform = `translate(${state.spin.x * 28}px, ${-state.spin.y * 28}px)`;
+  ratingTitle.textContent = t.rating;
+  renderRating();
   musicTitle.textContent = t.music;
   roomCode.textContent = room?.code ?? "-";
   powerText.textContent = `${Math.round(state.power * 100)}%`;
-  message.textContent = room
+  message.textContent = state.clientMode === "online_matchmaking"
+    ? t.searchingMatch
+    : room
     ? `${translateRuleMessage(room.gameState.ruleState.message)}${active ? ` · ${t.turn}: ${active.name}` : ""}${
         state.aimLocked ? ` · ${t.aimLocked}` : ""
       }`
@@ -772,7 +977,7 @@ function renderChrome(): void {
     state.power <= 0 ||
     room.gameState.ruleState.cuePlacementSeat === getMe()?.seat;
   shootBtn.textContent = t.shoot;
-  modeInput.disabled = Boolean(room);
+  modeInput.disabled = Boolean(room) || state.clientMode === "online_matchmaking";
   languageBtn.dataset.language = state.language;
   languageBtn.ariaLabel = `${t.nativeName}`;
   languageBtn.setAttribute("aria-expanded", String(state.languageMenuOpen));
@@ -802,14 +1007,38 @@ function renderSeats(): void {
     const player = room?.players.find((candidate) => candidate.seat === seat);
     const button = document.createElement("button");
     button.className = `seat ${room?.gameState.currentTurnSeat === seat ? "active" : ""}`;
-    button.disabled = !room || Boolean(player && player.id !== state.playerId);
+    button.disabled = state.clientMode === "local_1v1" || !room || Boolean(player && player.id !== state.playerId);
     button.innerHTML = `<span>${seat} · ${locale().team} ${teamForSeat(seat)}</span><strong>${
       player ? player.name : locale().open
     }</strong>`;
     button.addEventListener("click", () => {
-      if (room) send({ type: "choose_seat", roomCode: room.code, seat });
+      if (room && state.clientMode !== "local_1v1") send({ type: "choose_seat", roomCode: room.code, seat });
     });
     seats.append(button);
+  }
+}
+
+function renderRating(): void {
+  const t = locale();
+  ratingBody.innerHTML = "";
+  if (!state.rating.available) {
+    ratingBody.textContent = t.ratingUnavailable;
+    return;
+  }
+
+  const playerLine = document.createElement("div");
+  playerLine.className = "ratingPlayer";
+  playerLine.textContent =
+    state.rating.playerScore === undefined
+      ? t.ratingUnavailable
+      : `${t.yourRating}: ${state.rating.playerScore} (#${state.rating.playerRank ?? "-"})`;
+  ratingBody.append(playerLine);
+
+  for (const entry of state.rating.entries.slice(0, 5)) {
+    const row = document.createElement("div");
+    row.className = "ratingRow";
+    row.innerHTML = `<span>#${entry.rank} ${entry.name}</span><strong>${entry.score}</strong>`;
+    ratingBody.append(row);
   }
 }
 
@@ -977,6 +1206,29 @@ function updateSpinFromPointer(event: PointerEvent): void {
   renderTable();
 }
 
+function clampPointToTable(position: Vec2, table: RoomState["gameState"]["table"]): Vec2 {
+  const minX = table.cushion + table.ballRadius;
+  const maxX = table.width - table.cushion - table.ballRadius;
+  const minY = table.cushion + table.ballRadius;
+  const maxY = table.height - table.cushion - table.ballRadius;
+  return {
+    x: clamp(position.x, minX, maxX),
+    y: clamp(position.y, minY, maxY)
+  };
+}
+
+function overlapsObjectBall(position: Vec2, balls: Ball[], radius: number): boolean {
+  return balls.some((ball) => {
+    if (ball.id === 0 || ball.pocketed) return false;
+    return Math.hypot(ball.position.x - position.x, ball.position.y - position.y) < radius * 2.05;
+  });
+}
+
+function cleanDisplayName(value: string, fallback: string): string {
+  const name = value.trim();
+  return name || fallback;
+}
+
 function getCurrentPlayer() {
   const room = state.room;
   if (!room) return undefined;
@@ -984,6 +1236,9 @@ function getCurrentPlayer() {
 }
 
 function getMe() {
+  if (state.clientMode === "local_1v1") {
+    return state.room?.players.find((player) => player.seat === state.room?.gameState.currentTurnSeat);
+  }
   return state.room?.players.find((player) => player.id === state.playerId);
 }
 

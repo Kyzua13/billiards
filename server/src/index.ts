@@ -5,6 +5,7 @@ import { networkInterfaces } from "node:os";
 import { dirname, extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocket, WebSocketServer } from "ws";
+import { MatchmakingQueue, seatMatchedPlayers } from "./matchmaking.ts";
 import {
   SEATS,
   SEATS_BY_MODE,
@@ -52,6 +53,7 @@ interface Room {
 
 const rooms = new Map<string, Room>();
 const contexts = new Map<WebSocket, ClientContext>();
+const matchmaking = new MatchmakingQueue();
 
 const httpServer = createServer((request, response) => {
   if (request.url === "/healthz") {
@@ -80,6 +82,7 @@ wss.on("connection", (socket) => {
   socket.on("close", () => {
     const current = contexts.get(socket);
     contexts.delete(socket);
+    if (current) matchmaking.remove(current.playerId);
     if (!current?.roomCode) return;
     const room = rooms.get(current.roomCode);
     if (!room) return;
@@ -160,6 +163,12 @@ function handleMessage(context: ClientContext, message: ClientMessage): void {
     case "place_cue":
       placeCue(context, message.roomCode, message.position);
       break;
+    case "find_match":
+      findMatch(context, message.name, message.clientId);
+      break;
+    case "cancel_match":
+      cancelMatch(context);
+      break;
     case "shoot":
       shoot(context, message.roomCode, message.shot);
       break;
@@ -179,6 +188,7 @@ function createRoom(context: ClientContext, name: string, gameMode: GameMode, cl
   const player = createPlayer(clientId ?? context.playerId, name);
   context.playerId = player.id;
   context.roomCode = code;
+  matchmaking.remove(player.id);
 
   const room: Room = {
     clients: new Set([context.socket]),
@@ -203,6 +213,7 @@ function joinRoom(context: ClientContext, roomCode: string, name: string, client
   }
 
   const requestedId = clientId ?? context.playerId;
+  matchmaking.remove(requestedId);
   let player = room.state.players.find((candidate) => candidate.id === requestedId);
   if (player) {
     player.name = cleanName(name);
@@ -217,6 +228,55 @@ function joinRoom(context: ClientContext, roomCode: string, name: string, client
   room.clients.add(context.socket);
   send(context.socket, { type: "joined_room", room: room.state, playerId: context.playerId });
   broadcast(room, { type: "player_update", room: room.state });
+}
+
+function findMatch(context: ClientContext, name: string, clientId?: string): void {
+  const requestedId = clientId ?? context.playerId;
+  const playerId = matchmaking.has(requestedId) && contextForPlayer(requestedId) !== context ? context.playerId : requestedId;
+  context.playerId = playerId;
+  context.roomCode = undefined;
+
+  const pair = matchmaking.join(playerId, cleanName(name));
+  if (!pair) {
+    send(context.socket, { type: "matchmaking_update", status: "searching" });
+    return;
+  }
+
+  const firstContext = contextForPlayer(pair.first.playerId);
+  const secondContext = contextForPlayer(pair.second.playerId);
+  if (!firstContext || !secondContext) {
+    if (firstContext) matchmaking.join(pair.first.playerId, pair.first.name);
+    if (secondContext) matchmaking.join(pair.second.playerId, pair.second.name);
+    return;
+  }
+
+  const code = createRoomCode();
+  const firstPlayer = createPlayer(pair.first.playerId, pair.first.name);
+  const secondPlayer = createPlayer(pair.second.playerId, pair.second.name);
+  seatMatchedPlayers(firstPlayer, secondPlayer);
+  const gameState = createInitialGame();
+  gameState.phase = "playing";
+  gameState.ruleState.message = "Random match started";
+  const room: Room = {
+    clients: new Set([firstContext.socket, secondContext.socket]),
+    state: {
+      code,
+      gameMode: "1v1",
+      players: [firstPlayer, secondPlayer],
+      gameState
+    }
+  };
+  rooms.set(code, room);
+  firstContext.roomCode = code;
+  secondContext.roomCode = code;
+  send(firstContext.socket, { type: "match_found", room: room.state, playerId: firstContext.playerId });
+  send(secondContext.socket, { type: "match_found", room: room.state, playerId: secondContext.playerId });
+  broadcast(room, { type: "turn_changed", room: room.state });
+}
+
+function cancelMatch(context: ClientContext): void {
+  matchmaking.cancel(context.playerId);
+  send(context.socket, { type: "matchmaking_update", status: "cancelled" });
 }
 
 function chooseSeat(context: ClientContext, roomCode: string, seat: Seat): void {
@@ -334,6 +394,13 @@ function requirePlayer(room: Room, playerId: string): Player {
   const player = room.state.players.find((candidate) => candidate.id === playerId);
   if (!player) throw new Error("Player not in room");
   return player;
+}
+
+function contextForPlayer(playerId: string): ClientContext | undefined {
+  for (const context of contexts.values()) {
+    if (context.playerId === playerId && context.socket.readyState === WebSocket.OPEN) return context;
+  }
+  return undefined;
 }
 
 function broadcast(room: Room, message: ServerMessage): void {
