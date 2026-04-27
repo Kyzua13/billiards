@@ -30,7 +30,8 @@ const LANGUAGE_KEY = "lan-pool-language";
 const COMPACT_KEY = "lan-pool-compact";
 const MUSIC_VOLUME_KEY = "lan-pool-music-volume";
 const LOCAL_PLAYER_B_KEY = "lan-pool-local-player-b";
-const LOFI_STREAM_URL = import.meta.env.VITE_YANDEX === "true" ? "" : "https://ice5.somafm.com/beatblender-128-mp3";
+const IS_YANDEX_BUILD = import.meta.env.VITE_YANDEX === "true";
+const LOFI_STREAM_URL = IS_YANDEX_BUILD ? "" : "https://ice5.somafm.com/beatblender-128-mp3";
 const TABLE_WIDTH = 960;
 const TABLE_HEIGHT = 520;
 const SOUND_LIMIT = 2;
@@ -496,6 +497,7 @@ powerInput.value = String(state.power);
 musicVolume.value = String(state.musicVolume);
 
 document.querySelector<HTMLButtonElement>("#createBtn")!.addEventListener("click", () => {
+  if (IS_YANDEX_BUILD && !import.meta.env.VITE_WS_URL) return;
   localStorage.setItem(NAME_KEY, nameInput.value.trim());
   state.clientMode = "online_room";
   state.gameMode = modeInput.value === "2v2" ? "2v2" : "1v1";
@@ -507,6 +509,7 @@ document.querySelector<HTMLButtonElement>("#createBtn")!.addEventListener("click
 });
 
 document.querySelector<HTMLButtonElement>("#joinBtn")!.addEventListener("click", () => {
+  if (IS_YANDEX_BUILD && !import.meta.env.VITE_WS_URL) return;
   localStorage.setItem(NAME_KEY, nameInput.value.trim());
   state.clientMode = "online_room";
   ensureAudio();
@@ -517,6 +520,7 @@ document.querySelector<HTMLButtonElement>("#joinBtn")!.addEventListener("click",
 });
 
 document.querySelector<HTMLButtonElement>("#findMatchBtn")!.addEventListener("click", () => {
+  if (IS_YANDEX_BUILD && !import.meta.env.VITE_WS_URL) return;
   localStorage.setItem(NAME_KEY, nameInput.value.trim());
   state.clientMode = "online_matchmaking";
   state.room = undefined;
@@ -939,6 +943,9 @@ function renderChrome(): void {
   document.querySelector<HTMLButtonElement>("#findMatchBtn")!.textContent = t.findMatch;
   document.querySelector<HTMLButtonElement>("#cancelMatchBtn")!.textContent = t.cancelMatch;
   document.querySelector<HTMLButtonElement>("#cancelMatchBtn")!.hidden = state.clientMode !== "online_matchmaking";
+  document.querySelector<HTMLButtonElement>("#createBtn")!.hidden = IS_YANDEX_BUILD && !import.meta.env.VITE_WS_URL;
+  document.querySelector<HTMLButtonElement>("#joinBtn")!.hidden = IS_YANDEX_BUILD && !import.meta.env.VITE_WS_URL;
+  document.querySelector<HTMLButtonElement>("#findMatchBtn")!.hidden = IS_YANDEX_BUILD && !import.meta.env.VITE_WS_URL;
   document.querySelector<HTMLButtonElement>("#findMatchBtn")!.disabled = state.clientMode === "online_matchmaking";
   document.querySelector<HTMLButtonElement>("#localBtn")!.textContent = t.localGame;
   document.querySelector<HTMLElement>("#roomLabel")!.textContent = t.room;
@@ -1374,10 +1381,13 @@ function stopLocalShotAnimation(): void {
 function getWsUrl(): string {
   const explicit = import.meta.env.VITE_WS_URL as string | undefined;
   if (explicit) return explicit;
-  const host = window.location.hostname || "localhost";
-  if (window.location.protocol === "https:") return `wss://${window.location.host}`;
-  if (window.location.port && window.location.port !== "5173") return `ws://${window.location.host}`;
-  return `ws://${host}:8787`;
+  const url = new URL(window.location.href);
+  url.protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  url.pathname = "/";
+  url.search = "";
+  url.hash = "";
+  if (url.port === "5173") url.port = "8787";
+  return url.toString();
 }
 
 function getOrCreateClientId(): string {
