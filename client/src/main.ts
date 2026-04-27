@@ -30,7 +30,7 @@ const LANGUAGE_KEY = "lan-pool-language";
 const COMPACT_KEY = "lan-pool-compact";
 const MUSIC_VOLUME_KEY = "lan-pool-music-volume";
 const LOCAL_PLAYER_B_KEY = "lan-pool-local-player-b";
-const LOFI_STREAM_URL = "https://ice5.somafm.com/beatblender-128-mp3";
+const LOFI_STREAM_URL = import.meta.env.VITE_YANDEX === "true" ? "" : "https://ice5.somafm.com/beatblender-128-mp3";
 const TABLE_WIDTH = 960;
 const TABLE_HEIGHT = 520;
 const SOUND_LIMIT = 2;
@@ -1420,6 +1420,7 @@ function groupLabel(group?: BallGroup): string {
 }
 
 function startMusic(): void {
+  if (!LOFI_STREAM_URL) return;
   musicPlayer ??= createMusicPlayer();
   applyMusicVolume();
   if (musicPlayer.paused) void musicPlayer.play().catch(() => undefined);
