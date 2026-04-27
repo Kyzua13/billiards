@@ -342,6 +342,21 @@ interface AppState {
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) throw new Error("App root not found");
 
+const memoryStorage = new Map<string, string>();
+
+function storageGet(key: string): string | null {
+  if (IS_YANDEX_BUILD) return memoryStorage.get(key) ?? null;
+  return window.localStorage.getItem(key);
+}
+
+function storageSet(key: string, value: string): void {
+  if (IS_YANDEX_BUILD) {
+    memoryStorage.set(key, value);
+    return;
+  }
+  window.localStorage.setItem(key, value);
+}
+
 const state: AppState = {
   connected: false,
   playerId: getOrCreateClientId(),
@@ -356,8 +371,8 @@ const state: AppState = {
   gameMode: "1v1",
   language: getInitialLanguage(),
   languageMenuOpen: false,
-  compactMode: localStorage.getItem(COMPACT_KEY) === "true",
-  musicVolume: Number(localStorage.getItem(MUSIC_VOLUME_KEY) ?? "0.28"),
+  compactMode: storageGet(COMPACT_KEY) === "true",
+  musicVolume: Number(storageGet(MUSIC_VOLUME_KEY) ?? "0.28"),
   placingCue: false,
   error: ""
 };
@@ -491,14 +506,14 @@ let pendingResolvedRoom: RoomState | undefined;
 let lastSoundAt = 0;
 let placingCuePoint: Vec2 | undefined;
 
-nameInput.value = localStorage.getItem(NAME_KEY) ?? "";
-localNameInput.value = localStorage.getItem(LOCAL_PLAYER_B_KEY) ?? "";
+nameInput.value = storageGet(NAME_KEY) ?? "";
+localNameInput.value = storageGet(LOCAL_PLAYER_B_KEY) ?? "";
 powerInput.value = String(state.power);
 musicVolume.value = String(state.musicVolume);
 
 document.querySelector<HTMLButtonElement>("#createBtn")!.addEventListener("click", () => {
   if (IS_YANDEX_BUILD && !import.meta.env.VITE_WS_URL) return;
-  localStorage.setItem(NAME_KEY, nameInput.value.trim());
+  storageSet(NAME_KEY, nameInput.value.trim());
   state.clientMode = "online_room";
   state.gameMode = modeInput.value === "2v2" ? "2v2" : "1v1";
   ensureAudio();
@@ -510,7 +525,7 @@ document.querySelector<HTMLButtonElement>("#createBtn")!.addEventListener("click
 
 document.querySelector<HTMLButtonElement>("#joinBtn")!.addEventListener("click", () => {
   if (IS_YANDEX_BUILD && !import.meta.env.VITE_WS_URL) return;
-  localStorage.setItem(NAME_KEY, nameInput.value.trim());
+  storageSet(NAME_KEY, nameInput.value.trim());
   state.clientMode = "online_room";
   ensureAudio();
   startMusic();
@@ -521,7 +536,7 @@ document.querySelector<HTMLButtonElement>("#joinBtn")!.addEventListener("click",
 
 document.querySelector<HTMLButtonElement>("#findMatchBtn")!.addEventListener("click", () => {
   if (IS_YANDEX_BUILD && !import.meta.env.VITE_WS_URL) return;
-  localStorage.setItem(NAME_KEY, nameInput.value.trim());
+  storageSet(NAME_KEY, nameInput.value.trim());
   state.clientMode = "online_matchmaking";
   state.room = undefined;
   state.error = "";
@@ -543,17 +558,17 @@ document.querySelector<HTMLButtonElement>("#localBtn")!.addEventListener("click"
 
 compactBtn.addEventListener("click", () => {
   state.compactMode = !state.compactMode;
-  localStorage.setItem(COMPACT_KEY, String(state.compactMode));
+  storageSet(COMPACT_KEY, String(state.compactMode));
   renderChrome();
 });
 
 nameInput.addEventListener("change", () => {
-  localStorage.setItem(NAME_KEY, nameInput.value.trim());
+  storageSet(NAME_KEY, nameInput.value.trim());
   if (state.room) send({ type: "set_name", roomCode: state.room.code, name: nameInput.value });
 });
 
 localNameInput.addEventListener("change", () => {
-  localStorage.setItem(LOCAL_PLAYER_B_KEY, localNameInput.value.trim());
+  storageSet(LOCAL_PLAYER_B_KEY, localNameInput.value.trim());
 });
 
 powerInput.addEventListener("input", () => {
@@ -602,7 +617,7 @@ spinReset.addEventListener("click", () => {
 
 musicVolume.addEventListener("input", () => {
   state.musicVolume = Number(musicVolume.value);
-  localStorage.setItem(MUSIC_VOLUME_KEY, String(state.musicVolume));
+  storageSet(MUSIC_VOLUME_KEY, String(state.musicVolume));
   applyMusicVolume();
 });
 
@@ -617,7 +632,7 @@ languageMenu.addEventListener("click", (event) => {
   if (!language || !(language in LOCALES)) return;
   state.language = language;
   state.languageMenuOpen = false;
-  localStorage.setItem(LANGUAGE_KEY, language);
+  storageSet(LANGUAGE_KEY, language);
   render();
 });
 
@@ -752,7 +767,7 @@ function handleServerMessage(message: ServerMessage): void {
       state.clientMode = "online_room";
       applyRoom(message.room, true);
       state.playerId = message.playerId;
-      localStorage.setItem(CLIENT_ID_KEY, message.playerId);
+      storageSet(CLIENT_ID_KEY, message.playerId);
       roomInput.value = message.room.code;
       state.error = "";
       break;
@@ -765,7 +780,7 @@ function handleServerMessage(message: ServerMessage): void {
       state.clientMode = "online_room";
       applyRoom(message.room, true);
       state.playerId = message.playerId;
-      localStorage.setItem(CLIENT_ID_KEY, message.playerId);
+      storageSet(CLIENT_ID_KEY, message.playerId);
       roomInput.value = message.room.code;
       state.error = "";
       break;
@@ -814,8 +829,8 @@ function applyRoom(room: RoomState, clearAim: boolean): void {
 }
 
 function startLocalGame(): void {
-  localStorage.setItem(NAME_KEY, nameInput.value.trim());
-  localStorage.setItem(LOCAL_PLAYER_B_KEY, localNameInput.value.trim());
+  storageSet(NAME_KEY, nameInput.value.trim());
+  storageSet(LOCAL_PLAYER_B_KEY, localNameInput.value.trim());
   stopLocalShotAnimation();
   const gameState = createInitialGame();
   gameState.phase = "playing";
@@ -1391,15 +1406,15 @@ function getWsUrl(): string {
 }
 
 function getOrCreateClientId(): string {
-  const existing = localStorage.getItem(CLIENT_ID_KEY);
+  const existing = storageGet(CLIENT_ID_KEY);
   if (existing) return existing;
   const next = crypto.randomUUID();
-  localStorage.setItem(CLIENT_ID_KEY, next);
+  storageSet(CLIENT_ID_KEY, next);
   return next;
 }
 
 function getInitialLanguage(): Language {
-  const saved = localStorage.getItem(LANGUAGE_KEY);
+  const saved = storageGet(LANGUAGE_KEY);
   if (saved === "ru" || saved === "uk" || saved === "en") return saved;
   const browserLanguage = navigator.language.toLowerCase();
   if (browserLanguage.startsWith("ru")) return "ru";
