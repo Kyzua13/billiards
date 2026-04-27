@@ -107,7 +107,7 @@ function isYandexBuild(): boolean {
 function appendSdkScript(): Promise<void> {
   return new Promise((resolve, reject) => {
     const script = document.createElement("script");
-    script.src = "https://sdk.games.s3.yandex.net/sdk.js";
+    script.src = "/sdk.js";
     script.async = true;
     script.onload = () => resolve();
     script.onerror = () => reject(new Error("Yandex SDK failed to load"));
